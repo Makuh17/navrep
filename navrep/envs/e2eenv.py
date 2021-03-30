@@ -13,8 +13,8 @@ class FlatLidarAndStateEncoder(object):
     """ Generic class to encode the observations of an environment into a single 1d vector """
     def __init__(self):
         self._N = _L + _RS
-        self.observation_space = spaces.Box(low=-np.inf, high=np.inf,
-                                            shape=(self._N,1), dtype=np.float32)
+        high = np.ones(self._N, dtype=np.float32)*np.inf
+        self.observation_space = spaces.Box(low=-high, high=high, dtype=np.float32)
 
     def reset(self):
         pass
@@ -24,7 +24,7 @@ class FlatLidarAndStateEncoder(object):
 
     def _encode_obs(self, obs, action):
         lidar, state = obs
-        e2e_obs = np.concatenate([lidar, state]).reshape(self._N,1)
+        e2e_obs = np.concatenate([lidar, state]).reshape((self._N,))
         return e2e_obs
 
 class RingsLidarAndStateEncoder(object):
