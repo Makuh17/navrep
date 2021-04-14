@@ -13,6 +13,11 @@ class FlatLidarAndStateEncoder(object):
     """ Generic class to encode the observations of an environment into a single 1d vector """
     def __init__(self):
         self._N = _L + _RS
+        
+        #Old definition
+        #self.observation_space = spaces.Box(low=-np.inf, high=np.inf,shape=(self._N,1), dtype=np.float32)
+        
+        # New definition:
         high = np.ones(self._N, dtype=np.float32)*np.inf
         self.observation_space = spaces.Box(low=-high, high=high, dtype=np.float32)
 
@@ -31,8 +36,14 @@ class RingsLidarAndStateEncoder(object):
     """ Generic class to encode the observations of an environment into a rings 2d image """
     def __init__(self):
         self._N = _64*_64 + _RS
-        self.observation_space = spaces.Box(low=-np.inf, high=np.inf,
-                                            shape=(self._N,1), dtype=np.float32)
+        
+        # Old defintion:
+        #self.observation_space = spaces.Box(low=-np.inf, high=np.inf,shape=(self._N,1), dtype=np.float32)
+
+        # New Definition:
+        high = np.ones(self._N, dtype=np.float32)*np.inf
+        self.observation_space = spaces.Box(low=-high, high=high, dtype=np.float32)
+
         self.rings_def = generate_rings(_64, _64)
 
     def reset(self):
@@ -47,7 +58,7 @@ class RingsLidarAndStateEncoder(object):
             self.rings_def["lidar_to_rings"](lidar[None, :]).astype(float)
             / self.rings_def["rings_to_bool"]
         )
-        e2e_obs = np.concatenate([rings.reshape(_64*_64), state]).reshape(self._N,1)
+        e2e_obs = np.concatenate([rings.reshape(_64*_64), state]).reshape((self._N,))
         return e2e_obs
 
 class E2E1DNavRepEnv(NavRepTrainEnv):

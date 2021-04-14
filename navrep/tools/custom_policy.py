@@ -15,7 +15,7 @@ class Custom1DPolicy(ActorCriticPolicy):
     def __init__(self, sess, ob_space, ac_space, n_env, n_steps, n_batch, reuse=False, **kwargs):
         super(Custom1DPolicy, self).__init__(
             sess, ob_space, ac_space, n_env, n_steps, n_batch, reuse=reuse, scale=True)
-
+        print("ob_space: ", ob_space)
         with tf.variable_scope("model", reuse=reuse):
             activ = tf.nn.relu
 
