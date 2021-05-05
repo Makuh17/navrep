@@ -402,7 +402,7 @@ class NavRepTrainEnv(gym.Env):
                     for vert in poly:
                         gl.glVertex3f(vert[0], vert[1], 0)
                     gl.glEnd()
-                    # Direction triangle
+                    # Direction triangleset_robot
                     xnose = px + r * np.cos(angle)
                     ynose = py + r * np.sin(angle)
                     xright = px + 0.3 * r * -np.sin(angle)

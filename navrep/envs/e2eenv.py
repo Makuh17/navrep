@@ -13,13 +13,8 @@ class FlatLidarAndStateEncoder(object):
     """ Generic class to encode the observations of an environment into a single 1d vector """
     def __init__(self):
         self._N = _L + _RS
-        
-        #Old definition
-        #self.observation_space = spaces.Box(low=-np.inf, high=np.inf,shape=(self._N,1), dtype=np.float32)
-        
-        # New definition:
-        high = np.ones(self._N, dtype=np.float32)*np.inf
-        self.observation_space = spaces.Box(low=-high, high=high, dtype=np.float32)
+        self.observation_space = spaces.Box(low=-np.inf, high=np.inf,
+                                            shape=(self._N,1), dtype=np.float32)
 
     def reset(self):
         pass
@@ -29,21 +24,15 @@ class FlatLidarAndStateEncoder(object):
 
     def _encode_obs(self, obs, action):
         lidar, state = obs
-        e2e_obs = np.concatenate([lidar, state]).reshape((self._N,))
+        e2e_obs = np.concatenate([lidar, state]).reshape(self._N,1)
         return e2e_obs
 
 class RingsLidarAndStateEncoder(object):
     """ Generic class to encode the observations of an environment into a rings 2d image """
     def __init__(self):
         self._N = _64*_64 + _RS
-        
-        # Old defintion:
-        #self.observation_space = spaces.Box(low=-np.inf, high=np.inf,shape=(self._N,1), dtype=np.float32)
-
-        # New Definition:
-        high = np.ones(self._N, dtype=np.float32)*np.inf
-        self.observation_space = spaces.Box(low=-high, high=high, dtype=np.float32)
-
+        self.observation_space = spaces.Box(low=-np.inf, high=np.inf,
+                                            shape=(self._N,1), dtype=np.float32)
         self.rings_def = generate_rings(_64, _64)
 
     def reset(self):
@@ -58,7 +47,7 @@ class RingsLidarAndStateEncoder(object):
             self.rings_def["lidar_to_rings"](lidar[None, :]).astype(float)
             / self.rings_def["rings_to_bool"]
         )
-        e2e_obs = np.concatenate([rings.reshape(_64*_64), state]).reshape((self._N,))
+        e2e_obs = np.concatenate([rings.reshape(_64*_64), state]).reshape(self._N,1)
         return e2e_obs
 
 class E2E1DNavRepEnv(NavRepTrainEnv):
@@ -102,6 +91,26 @@ class E2ENavRepEnv(NavRepTrainEnv):
         obs = super(E2ENavRepEnv, self).reset()
         h = self.encoder._encode_obs(obs, np.array([0,0,0]))
         return h
+
+class E2ENavRepEnvPretrain(E2ENavRepEnv):
+    def __init__(self, *args, **kwargs):
+        super(E2ENavRepEnvPretrain, self).__init__(*args, **kwargs)
+        N = _64*_64 + _RS
+        high = np.ones(N, dtype=np.float32)*np.inf
+        self.observation_space = spaces.Box(low=-high, high=high, dtype=np.float32)
+
+    def step(self, action):
+        h, reward, done, info = super(E2ENavRepEnvPretrain, self).step(action)
+        N = h.shape[0]
+        h = h.reshape((N,))
+        return h, reward, done, info
+
+    def reset(self):
+        h = super(E2ENavRepEnvPretrain, self).reset()
+        N = h.shape[0]
+        h = h.reshape((N,))
+        return h
+
 
 class E2E1DIANEnv(IANEnv):
     """ takes a (2) action as input
