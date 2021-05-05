@@ -57,7 +57,7 @@ if __name__ == "__main__":
 
     if not os.path.exists(EXPERTPATH):
         print("Generate expert dataset")
-        alt_generate_expert_traj(pretrain_env,200,policy=FastmarchORCAPolicy(), save_path = EXPERTPATH, render=False)
+        alt_generate_expert_traj(pretrain_env,500,policy=FastmarchORCAPolicy(), save_path = EXPERTPATH, render=False)
 
         print("Saved expert data to " + EXPERTPATH)
 
@@ -65,7 +65,7 @@ if __name__ == "__main__":
 
     model = PPO2(CustomPolicy, env, verbose=1)
 
-    model.pretrain(dataset, n_epochs=30)
+    model.pretrain(dataset, n_epochs=1000)
 
     model.learn(total_timesteps=TRAIN_STEPS+1, callback=cb)
     obs = env.reset()
