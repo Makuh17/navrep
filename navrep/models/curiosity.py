@@ -2,6 +2,7 @@ import gym
 import numpy as np
 import torch
 import torch.nn as nn
+#from torch.nn.modules.activation import ReLU
 import torch.optim as optim
 
 from navrep.tools.curiosity_debug import measure_duration  
@@ -12,6 +13,9 @@ from datetime import datetime
 from navrep.envs.encodedenv import EnvEncoder
 import tensorflow as tf
 import os
+
+
+_RS = 5
 
 # TODO test
 class RefrainedCuriosity(nn.Module):
@@ -47,6 +51,79 @@ class VaeFeatureTransform(nn.Module):
         encoded = torch.from_numpy(encoded).to(self.device)
         return encoded
 
+class FeatureTransform(nn.Module):
+    def __init__(self, output_size=64, use_conv=True, channels_in=1, num_obsv=1):
+        super(FeatureTransform, self).__init__()
+        self.num_obsv = num_obsv
+        self.conv_size = 64*self.num_obsv
+
+        if use_conv :
+            self.conv = nn.Sequential(
+                nn.Conv2d(channels_in, 32, 4, stride=2),
+                #nn.BatchNorm2d(32),
+                nn.ReLU(),
+
+                nn.Conv2d(32,64,4, stride=2),
+                #nn.BatchNorm2d(32),
+                nn.ReLU(),
+
+                nn.Conv2d(64, 128, 4, stride=2),
+                #nn.BatchNorm2d(32),
+                nn.ReLU(),
+
+                nn.Conv2d(128,256,4, stride=2),
+                #nn.BatchNorm2d(32),
+                nn.ReLU()
+            )
+            self.dense = nn.Sequential(
+                nn.Linear(256*2*2*self.num_obsv,32)
+            )
+            self.fcn = nn.Sequential(
+                nn.Linear(32 + _RS, 64),
+                nn.ReLU(),
+                nn.Linear(64, output_size),
+                nn.ReLU()
+            )
+        else :
+            raise NotImplementedError()
+
+        self._set_grad_zero()
+
+    def _set_grad_zero(self):
+        for param in self.dense.parameters():
+            param.requires_grad = False
+        for param in self.conv.parameters():
+            param.requires_grad = False
+        for param in self.fcn.parameters():
+            param.requires_grad = False
+
+    def forward(self,x):
+        #print(x.shape)
+        x_lidar = x[:, :-_RS]
+        x_state = x[:,-_RS:]
+
+        rep_2d = x_lidar.view((-1, 1, 64, self.conv_size))
+        robot_state = x_state.view((-1,5))
+
+        h = self.conv(rep_2d)
+        h = h.view((-1, 2*2*self.num_obsv*256))
+        h = self.dense(h)
+
+        extracted_features = torch.cat((h,robot_state), dim=1)
+        out = self.fcn(extracted_features)
+
+        return out
+
+
+class RandomFeatureTransform2(nn.Module):
+    def __init__(self, output_size=64, num_obsv=1):
+        super(RandomFeatureTransform2, self).__init__()
+        self.tf = FeatureTransform(output_size=output_size, num_obsv=num_obsv)
+        self.tf._set_grad_zero()
+
+    def forward(self, x):
+        return self.tf.forward(x)
+
 
 class RandomFeatureTransform(nn.Module):
     def __init__(self, input_size, output_size):
@@ -60,27 +137,29 @@ class RandomFeatureTransform(nn.Module):
         #TODO maybe change init of weights with nn.init
         for param in self.tf.parameters():
             param.grad = None
-
     def forward(self, x):
         x_tf = self.tf(x)
         return x_tf
 
+
+
 class ForwardModel(nn.Module):
-    def __init__(self, input_size, output_size):
+    def __init__(self, input_size, output_size, hidden_size=64):
         super(ForwardModel, self).__init__()
         # TODO add layers
         # TODO need to decide what input values to consider for the observation (e.g. whole Lidar + robot state + goal or only a seleciton
         # TODO decide upon neural net structure
         # TODO dropout, batch norm and co
-        hidden_size = input_size//2
+        #hidden_size = input_size//2
         self.fwd = nn.Sequential(
             nn.Linear(input_size, hidden_size),
+            nn.ReLU(),
+            nn.Linear(hidden_size, hidden_size),
             nn.ReLU(),
             nn.Linear(hidden_size, output_size)
         )
 
     def forward(self, x, action):
-        # TODO may need to have another net architeture for ring structure using cnns
         # print(x.shape)
         joint_state = torch.cat((x, action), dim=-1)
         x_next_pred = self.fwd(joint_state)
@@ -88,16 +167,19 @@ class ForwardModel(nn.Module):
 
 
 class ICModule(nn.Module):
-    def __init__(self, obsv_size, action_size, use_feature_tf=False, tf_output_size=80):
+    def __init__(self, obsv_size, action_size, use_feature_tf=False, tf_output_size=64):
         super(ICModule, self).__init__()
         self.use_feature_tf = use_feature_tf
         if use_feature_tf != None:
             if use_feature_tf=='random' :
-                self.feature_tf = RandomFeatureTransform(obsv_size, tf_output_size)
+                #self.feature_tf = RandomFeatureTransform(obsv_size, tf_output_size)
+                self.feature_tf = RandomFeatureTransform2(output_size=tf_output_size)
+            elif use_feature_tf =='full':
+                self.feature_tf = FeatureTransform()
             elif use_feature_tf=='v' :
                 raise NotImplementedError()
-                self.feature_tf = VaeFeatureTransform()
-                tf_output_size = 37
+                #self.feature_tf = VaeFeatureTransform()
+                #tf_output_size = 37
             else :
                 raise NotImplementedError()
             
@@ -108,12 +190,9 @@ class ICModule(nn.Module):
     def forward(self, x_cur, x_next, action):
         if self.use_feature_tf :
             x_cur = self.feature_tf(x_cur)
-            x_next = self.feature_tf(x_next)
-
-        x_next_est = self.dynamics(x_cur, action)
-        rwd = 0.5*torch.mean(torch.square(torch.sub(x_next, x_cur)))
-        # TODO add encoder/embedding using inverse model for learning, or use traine VAE model
-        return rwd
+            phi_next = self.feature_tf(x_next)
+        phi_next_est = self.dynamics(x_cur, action)
+        return phi_next, phi_next_est
 
 
 class ReplayBuffer(object):
@@ -143,6 +222,13 @@ class ReplayBuffer(object):
     def get_newest_transition(self):
         return self.action_buffer[self.last_idx], self.obsv_buffer[self.last_idx], self.next_obsv_buffer[self.last_idx]
 
+    def get_k_newest_transitions(self,k):
+        if self.last_idx-k >= 0 :
+            return self.action_buffer[self.last_idx-k:self.last_idx], self.obsv_buffer[self.last_idx-k:self.last_idx], self.next_obsv_buffer[self.last_idx-k:self.last_idx]
+        else :
+            return self.action_buffer[0:self.last_idx], self.obsv_buffer[0:self.last_idx], self.next_obsv_buffer[0:self.last_idx]
+ 
+
     def get_complete_buffer(self):
         if self.full :
             return self.action_buffer, self.obsv_buffer, self.next_obsv_buffer
@@ -158,16 +244,38 @@ class ReplayBuffer(object):
         else :
             rand_idxs = np.random.randint(0, self.next_idx, size=batch_size) 
         return self.action_buffer[rand_idxs], self.obsv_buffer[rand_idxs], self.next_obsv_buffer[rand_idxs]
+    
+    def _save_buffer(self):
+        import pathlib
+        path =  pathlib.Path.home() / 'navrep/buffer/'
+        path.mkdir(parents=True, exist_ok=True)
+        print("Saving buffer to " + str(path))
+        np.save(path/ 'action' ,self.action_buffer)
+        np.save(path / 'obsv', self.obsv_buffer)
+        np.save(path / 'obsvnext', self.next_obsv_buffer)
+
+    def _load_buffer(self):
+        import pathlib
+        path =  pathlib.Path.home() / 'navrep/buffer/'
+        path.mkdir(parents=True, exist_ok=True)
+        self.action_buffer = np.load(path/ 'action.npy')
+        self.obsv_buffer = np.load(path / 'obsv.npy')
+        self.next_obsv_buffer = np.load(path / 'obsvnext.npy')
+        self.full = True
+        new_size = self.action_buffer.shape[0]
+        if(new_size!=self.size) :
+            print("Size of buffer has changed !")
+
 
 
 class CuriosityTrainer(object):
-    def __init__(self, buffer, model, device, num_iter=20, tboard_writer=None) -> None:
+    def __init__(self, buffer, model, device, num_iter=10, tboard_writer=None) -> None:
         self.buffer = buffer
         self.model = model
         self.device = device
         self.num_iter = num_iter
         self.num_training_session = 0
-        self.optimizer = optim.Adam(self.model.parameters(), lr=0.001)
+        self.optimizer = optim.Adam(self.model.parameters(), lr=0.0001)
         self.criterion = nn.MSELoss()
         self.tboard_writer = tboard_writer
 
@@ -186,11 +294,10 @@ class CuriosityTrainer(object):
                 data[2]).float().squeeze().to(self.device)
 
             self.optimizer.zero_grad()
-            #loss = self._loss(next_state_pred, true_next_state)
-            loss = self.model(curr_state, true_next_state, curr_action)
+            phi_next, phi_next_est = self.model(curr_state, true_next_state, curr_action)
+            loss = self._loss(phi_next_est, phi_next)
             loss.backward()
             self.optimizer.step()
-
             # TODO change
             running_loss += loss.item()
             if debug and it % 10 == 0:
@@ -213,13 +320,16 @@ class CuriosityWrapper(gym.Wrapper):
         self.env = env
         self.action_shape = env.action_space.shape
         self.obsv_shape = env.observation_space.shape
-        self.cur_reward_scaling = 1e5
+        self.cur_reward_scaling = 1e4
         self.prev_obs = None
         self.feature_tf = 'random'
-        self.steps_btw_training = 5
+        self.steps_btw_training = 128#number of rollouts between training of the fwd model 
         self.buffer_size = 1000 # TODO
         self.replay_buffer = ReplayBuffer(
             self.buffer_size, self.action_shape, self.obsv_shape)
+        self.running_reward = 0
+        self.running_extrinsic_rew = 0
+        self.debug = debug
 
         self.icm = ICModule(
             action_size=self.action_shape[0], obsv_size=self.obsv_shape[0],use_feature_tf=self.feature_tf)
@@ -231,22 +341,26 @@ class CuriosityWrapper(gym.Wrapper):
 
         self.icm.to(self.device)
 
+
+        print(self.icm)
         #debug - tensorboard
         if debug == True :
             now = datetime.now()
             datestr = now.strftime('%m%d%H%M%S')
             modelparamstr = '_B:' + str(self.buffer_size) + '_FTF:' +str(self.feature_tf) + '_SBT:' +str(self.steps_btw_training) + '_CRS:' +str(self.cur_reward_scaling)
-            writer = SummaryWriter(log_dir='/home/robin/navrep/tboard/CUR_{a}_{b}'.format(a=modelparamstr,b=datestr))
-            writer.flush()
-            print(self.icm)
+            self.writer = SummaryWriter(log_dir='/home/robin/navrep/tboard/CUR_{a}_{b}'.format(a=modelparamstr,b=datestr))
+            self.writer.flush()            
+        else :
+            self.writer = None
 
         self.trainer = CuriosityTrainer(
-            self.replay_buffer, self.icm, self.device, tboard_writer=writer)
+            self.replay_buffer, self.icm, self.device, tboard_writer=self.writer)
         self.steps_counter = 0
         
         
     def reset(self, **kwargs):
         observation = self.env.reset(**kwargs)
+        self.prev_obs = None
         return self.observation(observation)
 
     #@measure_duration
@@ -274,15 +388,28 @@ class CuriosityWrapper(gym.Wrapper):
                 self.prev_obs).float().squeeze().to(self.device)
             s_next = torch.from_numpy(
                 observation).float().squeeze().to(self.device)
+            s_next = s_next.view([-1] + list(s_next.size()))
+            s_prev = s_prev.view([-1] +list(s_prev.size()))
+            #print(s_prev.shape)
             a = torch.from_numpy(action).to(self.device)
-            intrinsic_reward = self.icm(s_prev, s_next, a).cpu().numpy()
+            a = a.view([-1] + list(a.size()))
+            phi_next, phi_next_est = self.icm(s_prev, s_next, a)
+            intrinsic_reward = 0.5*torch.mean(torch.square(torch.sub(phi_next, phi_next_est))).cpu().numpy()
         else:
             #print('[{}] Starting without intrinsic reward'.format(self.steps_counter))
             intrinsic_reward = 0
         #rew = reward + intrinsic_reward
         rew = intrinsic_reward*self.cur_reward_scaling # + reward/100
         # TODO Normalize or not - reward seem to be really
-
+        
+        self.running_reward += rew
+        self.running_extrinsic_rew += reward
+        if self.debug and self.steps_counter%10==0:
+            self.writer.add_scalar('Curiosity/reward_signal', self.running_reward/10 ,self.steps_counter)
+            self.writer.add_scalar('Curiosity/extrinsic_reward_signal', self.running_extrinsic_rew/10 ,self.steps_counter)
+            self.writer.flush()
+            self.running_reward = 0
+            self.running_extrinsic_rew = 0
         #print(rew)
         return rew
 

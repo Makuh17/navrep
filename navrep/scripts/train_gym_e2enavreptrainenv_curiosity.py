@@ -35,7 +35,7 @@ if __name__ == "__main__":
     if TRAIN_STEPS is None:
         TRAIN_STEPS = 60 * MILLION
 
-    N_ENVS = 4
+    N_ENVS = 2
     if args.debug:
         env = DummyVecEnv([lambda: CuriosityWrapper(
             E2ENavRepEnv(silent=True, scenario='train'))]*N_ENVS)
