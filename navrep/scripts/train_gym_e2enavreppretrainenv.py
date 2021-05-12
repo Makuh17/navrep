@@ -17,7 +17,7 @@ if __name__ == "__main__":
 
     DIR = os.path.expanduser("~/navrep/models/gym")
     LOGDIR = os.path.expanduser("~/navrep/logs/gym")
-    EXPERTDIR = os.path.expanduser("~/navrep/expert_dataset")
+    EXPERTDIR = os.path.expanduser("~/navrep/expert_dataset_test")
     if args.dry_run:
         DIR = "/tmp/navrep/models/gym"
         LOGDIR = "/tmp/navrep/logs/gym"
@@ -48,7 +48,7 @@ if __name__ == "__main__":
                             start_method='spawn')
     eval_env = E2ENavRepEnvPretrain(silent=True, scenario='train')
 
-    pretrain_env = E2ENavRepEnvPretrain(silent=True, scenario='train')
+    pretrain_env = E2ENavRepEnvPretrain(silent=True, scenario='test')
 
     def test_env_fn():  # noqa
         return E2ENavRepEnvPretrain(silent=True, scenario='test')
@@ -57,7 +57,7 @@ if __name__ == "__main__":
 
     if not os.path.exists(EXPERTPATH):
         print("Generate expert dataset")
-        alt_generate_expert_traj(pretrain_env,500,policy=FastmarchORCAPolicy(), save_path = EXPERTPATH, render=False)
+        alt_generate_expert_traj(pretrain_env,2000,policy=FastmarchORCAPolicy(), save_path = EXPERTPATH, render=False)
 
         print("Saved expert data to " + EXPERTPATH)
 

@@ -6,10 +6,6 @@ import matplotlib.pyplot as plt
 from map2d import gridshow
 from navrep.envs.e2eenv import E2ENavRepEnvPretrain #, E2ENavRepEnv
 
-from stable_baselines import PPO2
-from stable_baselines.gail import ExpertDataset
-from navrep.tools.custom_policy import CustomPolicy, Custom1DPolicy, ARCH, _C
-
 import os
 import warnings
 from typing import Dict
