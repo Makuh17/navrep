@@ -32,6 +32,7 @@ MANIFEST
 *.jar
 *.rar
 *.tar
+*.npz
 # *.zip
 
 # Point-Cloud Files #
