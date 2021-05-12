@@ -17,7 +17,7 @@ if __name__ == "__main__":
 
     DIR = os.path.expanduser("~/navrep/models/gym")
     LOGDIR = os.path.expanduser("~/navrep/logs/gym")
-    EXPERTDIR = os.path.expanduser("~/navrep/expert_dataset_test")
+    EXPERTDIR = os.path.expanduser("~/navrep/expert_dataset")
     if args.dry_run:
         DIR = "/tmp/navrep/models/gym"
         LOGDIR = "/tmp/navrep/logs/gym"
@@ -55,7 +55,8 @@ if __name__ == "__main__":
     cb = NavrepEvalCallback(eval_env, test_env_fn=test_env_fn,
                             logpath=LOGPATH, savepath=MODELPATH, verbose=1, render=args.render)
 
-    if not os.path.exists(EXPERTPATH):
+    print(EXPERTPATH + ".npz")
+    if not os.path.exists(EXPERTPATH + ".npz"):
         print("Generate expert dataset")
         alt_generate_expert_traj(pretrain_env,2000,policy=FastmarchORCAPolicy(), save_path = EXPERTPATH, render=False)
 
@@ -65,7 +66,7 @@ if __name__ == "__main__":
 
     model = PPO2(CustomPolicy, env, verbose=1)
 
-    model.pretrain(dataset, n_epochs=1000)
+    model.pretrain(dataset, n_epochs=300)
 
     model.learn(total_timesteps=TRAIN_STEPS+1, callback=cb)
     obs = env.reset()
