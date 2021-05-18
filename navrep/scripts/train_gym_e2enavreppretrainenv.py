@@ -68,7 +68,7 @@ if __name__ == "__main__":
     print(EXPERTPATH + ".npz")
     if not os.path.exists(EXPERTPATH + ".npz"):
         print("Generate expert dataset")
-        alt_generate_expert_traj(pretrain_env,2000,policy=FastmarchORCAPolicy(), save_path = EXPERTPATH, render=False)
+        alt_generate_expert_traj(pretrain_env,750,policy=FastmarchORCAPolicy(), save_path = EXPERTPATH, render=False)
 
         print("Saved expert data to " + EXPERTPATH)
 
