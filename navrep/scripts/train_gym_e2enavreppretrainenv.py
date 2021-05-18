@@ -52,8 +52,8 @@ if __name__ == "__main__":
     eval_env.soadrl_sim.num_circles = 0
 
     pretrain_env = E2ENavRepEnvPretrain(silent=True, scenario='test', adaptive=False)
-    pretrain_env.soadrl_sim.human_num = 0
-    pretrain_env.soadrl_sim.num_walls = 0
+    pretrain_env.soadrl_sim.human_num = 2
+    pretrain_env.soadrl_sim.num_walls = 2
     pretrain_env.soadrl_sim.num_circles = 0
 
     def test_env_fn():  # noqa
