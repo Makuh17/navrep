@@ -27,7 +27,7 @@ if __name__ == "__main__":
     LOGPATH = os.path.join(LOGDIR, LOGNAME + ".csv")
     MODELPATH = os.path.join(DIR, LOGNAME + "_ckpt")
     MODELPATH2 = os.path.join(DIR, "e2enavreppretrainenv_latest_PPO_ckpt")
-    EXPERTPATH = os.path.join(EXPERTDIR, "fmORCA")
+    EXPERTPATH = os.path.join(EXPERTDIR, "fmORCA_ez")
     if not os.path.exists(DIR):
         os.makedirs(DIR)
     if not os.path.exists(LOGDIR):
