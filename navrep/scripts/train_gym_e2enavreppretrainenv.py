@@ -46,12 +46,22 @@ if __name__ == "__main__":
     else:
         env = SubprocVecEnv([lambda: E2ENavRepEnvPretrain(silent=True, scenario='train')]*N_ENVS,
                             start_method='spawn')
-    eval_env = E2ENavRepEnvPretrain(silent=True, scenario='train')
+    eval_env = E2ENavRepEnvPretrain(silent=True, scenario='train', adaptive=False)
+    eval_env.soadrl_sim.human_num = 0
+    eval_env.soadrl_sim.num_walls = 0
+    eval_env.soadrl_sim.num_circles = 0
 
-    pretrain_env = E2ENavRepEnvPretrain(silent=True, scenario='test')
+    pretrain_env = E2ENavRepEnvPretrain(silent=True, scenario='test', adaptive=False)
+    pretrain_env.soadrl_sim.human_num = 0
+    pretrain_env.soadrl_sim.num_walls = 0
+    pretrain_env.soadrl_sim.num_circles = 0
 
     def test_env_fn():  # noqa
-        return E2ENavRepEnvPretrain(silent=True, scenario='test')
+        ret_env = E2ENavRepEnvPretrain(silent=True, scenario='test', adaptive=False)
+        ret_env.soadrl_sim.human_num = 0
+        ret_env.soadrl_sim.num_walls = 0
+        ret_env.soadrl_sim.num_circles = 0
+        return ret_env
     cb = NavrepEvalCallback(eval_env, test_env_fn=test_env_fn,
                             logpath=LOGPATH, savepath=MODELPATH, verbose=1, render=args.render)
 
