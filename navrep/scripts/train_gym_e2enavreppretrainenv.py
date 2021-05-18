@@ -76,7 +76,7 @@ if __name__ == "__main__":
 
     model = PPO2(CustomPolicy, env, verbose=1)
 
-    model.pretrain(dataset, n_epochs=300)
+    #model.pretrain(dataset, n_epochs=300)
 
     model.learn(total_timesteps=TRAIN_STEPS+1, callback=cb)
     obs = env.reset()
