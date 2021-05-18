@@ -27,7 +27,7 @@ if __name__ == "__main__":
     LOGPATH = os.path.join(LOGDIR, LOGNAME + ".csv")
     MODELPATH = os.path.join(DIR, LOGNAME + "_ckpt")
     MODELPATH2 = os.path.join(DIR, "e2enavreppretrainenv_latest_PPO_ckpt")
-    EXPERTPATH = os.path.join(EXPERTDIR, "fmORCA_prtr22")
+    EXPERTPATH = os.path.join(EXPERTDIR, "fmORCA_tt")
     if not os.path.exists(DIR):
         os.makedirs(DIR)
     if not os.path.exists(LOGDIR):
@@ -68,7 +68,7 @@ if __name__ == "__main__":
     print(EXPERTPATH + ".npz")
     if not os.path.exists(EXPERTPATH + ".npz"):
         print("Generate expert dataset")
-        alt_generate_expert_traj(pretrain_env,750,policy=FastmarchORCAPolicy(), save_path = EXPERTPATH, render=False)
+        alt_generate_expert_traj(pretrain_env,500,policy=FastmarchORCAPolicy(), save_path = EXPERTPATH, render=False)
 
         print("Saved expert data to " + EXPERTPATH)
 
