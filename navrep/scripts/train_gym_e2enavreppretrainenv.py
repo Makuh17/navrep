@@ -57,10 +57,10 @@ if __name__ == "__main__":
     pretrain_env.soadrl_sim.num_circles = 0
 
     def test_env_fn():  # noqa
-        ret_env = E2ENavRepEnvPretrain(silent=True, scenario='test')
-        #ret_env.soadrl_sim.human_num = 0
-        #ret_env.soadrl_sim.num_walls = 0
-        #ret_env.soadrl_sim.num_circles = 0
+        ret_env = E2ENavRepEnvPretrain(silent=True, scenario='test', adaptive= False)
+        ret_env.soadrl_sim.human_num = 1
+        ret_env.soadrl_sim.num_walls = 2
+        ret_env.soadrl_sim.num_circles = 0
         return ret_env
     cb = NavrepEvalCallback(eval_env, test_env_fn=test_env_fn,
                             logpath=LOGPATH, savepath=MODELPATH, verbose=1, render=args.render)
