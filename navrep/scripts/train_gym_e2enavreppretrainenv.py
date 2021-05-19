@@ -1,3 +1,4 @@
+from argparse import ArgumentDefaultsHelpFormatter
 from datetime import datetime
 import os
 
@@ -47,20 +48,20 @@ if __name__ == "__main__":
         env = SubprocVecEnv([lambda: E2ENavRepEnvPretrain(silent=True, scenario='train')]*N_ENVS,
                             start_method='spawn')
     eval_env = E2ENavRepEnvPretrain(silent=True, scenario='train')
-    eval_env.soadrl_sim.human_num = 0
-    eval_env.soadrl_sim.num_walls = 0
-    eval_env.soadrl_sim.num_circles = 0
+    eval_env.soadrl_sim.human_num = 5
+    eval_env.soadrl_sim.num_walls = 5
+    eval_env.soadrl_sim.num_circles = 5
 
-    pretrain_env = E2ENavRepEnvPretrain(silent=True, scenario='train')
-    pretrain_env.soadrl_sim.human_num = 0
-    pretrain_env.soadrl_sim.num_walls = 0
-    pretrain_env.soadrl_sim.num_circles = 0
+    pretrain_env = E2ENavRepEnvPretrain(silent=True, scenario='train', adaptive=False )
+    pretrain_env.soadrl_sim.human_num = 5
+    pretrain_env.soadrl_sim.num_walls = 5
+    pretrain_env.soadrl_sim.num_circles = 5
 
     def test_env_fn():  # noqa
         ret_env = E2ENavRepEnvPretrain(silent=True, scenario='test', adaptive= False)
-        # ret_env.soadrl_sim.human_num = 1
-        # ret_env.soadrl_sim.num_walls = 2
-        # ret_env.soadrl_sim.num_circles = 0
+        pretrain_env.soadrl_sim.human_num = 5
+        pretrain_env.soadrl_sim.num_walls = 5
+        pretrain_env.soadrl_sim.num_circles = 5
         return ret_env
     cb = NavrepEvalCallback(eval_env, test_env_fn=test_env_fn,
                             logpath=LOGPATH, savepath=MODELPATH, verbose=1, render=args.render)
