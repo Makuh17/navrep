@@ -252,7 +252,7 @@ class NavRepTrainEnv(gym.Env):
         self.steps_since_reset = 0
         self.episode_reward = 0
         _, _ = self.soadrl_sim.reset(self.scenario, compute_local_map=False)
-        random_rot = ActionXYRot(0, 0, 0) #10.*(np.random.random()-0.5))
+        random_rot = ActionXYRot(0, 0, 10.*(np.random.random()-0.5))
         self.soadrl_sim.step(random_rot, compute_local_map=False, border=self.border)
         if not self.LEGACY_MODE:
             self._add_border_obstacle()
