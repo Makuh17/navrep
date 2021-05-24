@@ -5,11 +5,15 @@ from stable_baselines import PPO2
 from stable_baselines.common.vec_env import SubprocVecEnv, DummyVecEnv
 
 from navrep.tools.custom_policy import CustomPolicy, ARCH, _C
-from navrep.envs.e2eenv import E2ENavRepEnv
+from navrep.envs.e2eenv import E2ENavRepEnv, E2ENavRepEnvCuriosity
 from navrep.tools.sb_eval_callback import NavrepEvalCallback
 from navrep.tools.commonargs import parse_common_args
 
 from navrep.models.curiosity import CuriosityWrapper
+
+from navrep.envs.navreptrainencodedenv import *
+
+from stable_baselines.common.policies import MlpPolicy
 
 if __name__ == "__main__":
     args, _ = parse_common_args()
@@ -33,25 +37,37 @@ if __name__ == "__main__":
     MILLION = 1000000
     TRAIN_STEPS = args.n
     if TRAIN_STEPS is None:
-        TRAIN_STEPS = 60 * MILLION
+        TRAIN_STEPS = 1 * MILLION
 
     N_ENVS = 2
-    if args.debug:
-        env = DummyVecEnv([lambda: CuriosityWrapper(
-            E2ENavRepEnv(silent=True, scenario='train'))]*N_ENVS)
+    #if args.debug:
+    #    env = DummyVecEnv([lambda: CuriosityWrapper(
+    #        E2ENavRepEnvCuriosity(silent=True, scenario='train'))]*N_ENVS)
+        #env = DummyVecEnv([lambda: CuriosityWrapper(E2ENavRepEnv(silent=True, scenario='train'))]*N_ENVS)
         #env = DummyVecEnv([lambda: E2ENavRepEnv(silent=True, scenario='train')]*N_ENVS)
-    else:
+   # else:
         #env = SubprocVecEnv([lambda: E2ENavRepEnv(silent=True, scenario='train')]*N_ENVS,
-                            #start_method='spawn')
-        env = SubprocVecEnv([lambda: CuriosityWrapper(E2ENavRepEnv(silent=True, scenario='train'))]*N_ENVS,
-        start_method='spawn')
-    # TODO change eval/test environment to curiosity one ?
-    eval_env = E2ENavRepEnv(silent=True, scenario='train')
+                            #start_method='spawn')     
+    #env = SubprocVecEnv([lambda: CuriosityWrapper(E2ENavRepEnvCuriosity(silent=True, scenario='train'))]*N_ENVS, start_method='spawn')
+    #env = SubprocVecEnv([lambda: CuriosityWrapper(E2ENavRepEnv(silent=True, scenario='train'))]*N_ENVS, start_method='spawn')
+    
+    env = SubprocVecEnv([lambda: CuriosityWrapper(NavRepTrainEncodedEnv(backend='VAE_LSTM', encoding='V_ONLY', silent=True, scenario='train'),
+                        use_gpu=False, feature_tf=None)]*N_ENVS, start_method='spawn')
+
+
+    #eval_env = E2ENavRepEnv(silent=True, scenario='train')
+    eval_env = NavRepTrainEncodedEnv(backend='VAE_LSTM', encoding='V_ONLY', silent=True, scenario='train')
+
     def test_env_fn():  # noqa
-        return E2ENavRepEnv(silent=True, scenario='test')
+        #return E2ENavRepEnv(silent=True, scenario='test')
+        return NavRepTrainEncodedEnv(backend='VAE_LSTM', encoding='V_ONLY', silent=True, scenario='test')
+    
     cb = NavrepEvalCallback(eval_env, test_env_fn=test_env_fn,
                             logpath=LOGPATH, savepath=MODELPATH, verbose=1, render=args.render)
-    model = PPO2(CustomPolicy, env, verbose=0)
+    
+    model = PPO2(MlpPolicy, env, verbose=0)
+    #model = PPO2(CustomPolicy, env, verbose=0)
+
     model.learn(total_timesteps=TRAIN_STEPS+1, callback=cb)
     obs = env.reset()
 

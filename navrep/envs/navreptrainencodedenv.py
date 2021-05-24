@@ -1,3 +1,4 @@
+from navrep.envs.navreptrainenvcuriosity import NavRepTrainEnvCuriosity
 from gym import spaces
 import numpy as np
 import os
@@ -21,6 +22,54 @@ class NavRepTrainEncoder(EnvEncoder):
             gpu=gpu,
             encoder_to_share_model_with=None,
         )
+
+class NavRepTrainEncodedEnvCuriosity(NavRepTrainEnvCuriosity):
+    """ takes a (2) action as input
+    outputs encoded obs (546) 
+    Includes DONE signal change
+    """
+    def __init__(self, backend, encoding,
+                 scenario='test', silent=False, adaptive=True,
+                 gpu=False, shared_encoder=None, encoder=None):
+        if encoder is None:
+            encoder = NavRepTrainEncoder(backend, encoding,
+                                         gpu=gpu, encoder_to_share_model_with=shared_encoder)
+        self.encoder = encoder
+        super(NavRepTrainEncodedEnvCuriosity, self).__init__(scenario=scenario, silent=silent, adaptive=adaptive,
+                                                    legacy_mode=False)
+        self.action_space = spaces.Box(low=-1, high=1, shape=(2,), dtype=np.float32)
+        self.observation_space = self.encoder.observation_space
+
+    def step(self, action):
+        action = np.array([action[0], action[1], 0.])  # no rotation
+        obs, reward, done, info = super(NavRepTrainEncodedEnvCuriosity, self).step(action)
+        h = self.encoder._encode_obs(obs, action)
+        return h, reward, done, info
+
+    def reset(self, *args, **kwargs):
+        self.encoder.reset()
+        obs = super(NavRepTrainEncodedEnvCuriosity, self).reset(*args, **kwargs)
+        h = self.encoder._encode_obs(obs, np.array([0,0,0]))
+        return h
+
+    def close(self):
+        super(NavRepTrainEncodedEnvCuriosity, self).close()
+        self.encoder.close()
+
+    def render(self, mode="human", close=False, save_to_file=False,
+               robocentric=False, render_decoded_scan=True):
+        decoded_scan = None
+        if render_decoded_scan:
+            decoded_scan = self.encoder._get_last_decoded_scan()
+        super(NavRepTrainEncodedEnvCuriosity, self).render(
+            mode=mode, close=close, lidar_scan_override=decoded_scan, save_to_file=save_to_file,
+            robocentric=robocentric)
+        if mode == "rings":
+            self.encoder._render_rings(close=close, save_to_file=save_to_file)
+        if mode == "polar":
+            self.encoder._render_rings_polar(close=close, save_to_file=save_to_file)
+
+
 
 
 class NavRepTrainEncodedEnv(NavRepTrainEnv):
