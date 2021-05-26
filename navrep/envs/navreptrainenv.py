@@ -444,7 +444,7 @@ class NavRepTrainEnv(gym.Env):
                 win.flip()
                 if save_to_file:
                     pyglet.image.get_buffer_manager().get_color_buffer().save(
-                        "/tmp/navreptrainenv{:05}.png".format(self.total_steps))
+                        "images/navreptrainenv{:05}.png".format(self.total_steps))
                 return self.viewer.isopen
         else:
             raise NotImplementedError
