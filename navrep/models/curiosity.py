@@ -523,7 +523,7 @@ if __name__ == '__main__':
     #env = E2ENavRepEnvCuriosity()
     #env = E2E1DNavRepEnv()
     from navrep.envs.navreptrainencodedenv import *
-    env = NavRepTrainEncodedEnv(backend='VAE_LSTM', encoding='V_ONLY', scenario='train')
+    env = NavRepTrainEncodedEnvCuriosity(backend='VAE_LSTM', encoding='V_ONLY', scenario='train')
 
     wrapped_env = CuriosityWrapper(env, use_gpu=False, feature_tf=None,verbose_icm_training=1)
     #wrapped_env = CuriosityWrapper(env, icm_module_path='/home/robin/navrep/models/curiosity/CURIOSITY_ICM_51_05_12_18_10_18.pt')
@@ -538,6 +538,7 @@ if __name__ == '__main__':
         print('Environment step :  ' + str(i))
         #obsv, reward, done, info = wrapped_env.step(wrapped_env.action_space.sample())
         obsv, reward, done, info = wrapped_env.step(np.array([1,0]))
+        print(obsv.shape)
         if done :
             wrapped_env.reset()
             continue
