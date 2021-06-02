@@ -43,16 +43,16 @@ if __name__ == "__main__":
 
     N_ENVS = 6
     if args.debug:
-        env = DummyVecEnv([lambda: E2ENavRepEnvPretrain(silent=True, scenario='train')]*N_ENVS)
+        env = DummyVecEnv([lambda: E2ENavRepEnvPretrain(silent=True, scenario='test', adaptive=False)]*N_ENVS)
     else:
-        env = SubprocVecEnv([lambda: E2ENavRepEnvPretrain(silent=True, scenario='train')]*N_ENVS,
+        env = SubprocVecEnv([lambda: E2ENavRepEnvPretrain(silent=True, scenario='test', adaptive=False)]*N_ENVS,
                             start_method='spawn')
-    eval_env = E2ENavRepEnvPretrain(silent=True, scenario='train')
+    eval_env = E2ENavRepEnvPretrain(silent=True, scenario='test', adaptive=False)
     eval_env.soadrl_sim.human_num = 5
     eval_env.soadrl_sim.num_walls = 5
     eval_env.soadrl_sim.num_circles = 5
 
-    pretrain_env = E2ENavRepEnvPretrain(silent=True, scenario='train', adaptive=False )
+    pretrain_env = E2ENavRepEnvPretrain(silent=True, scenario='test', adaptive=False )
     pretrain_env.soadrl_sim.human_num = 5
     pretrain_env.soadrl_sim.num_walls = 5
     pretrain_env.soadrl_sim.num_circles = 5
@@ -69,7 +69,7 @@ if __name__ == "__main__":
     print(EXPERTPATH + ".npz")
     if not os.path.exists(EXPERTPATH + ".npz"):
         print("Generate expert dataset")
-        alt_generate_expert_traj(pretrain_env,750,policy=FastmarchORCAPolicy(), save_path = EXPERTPATH, render=False)
+        alt_generate_expert_traj(pretrain_env,1000,policy=FastmarchORCAPolicy(), save_path = EXPERTPATH, render=False)
 
         print("Saved expert data to " + EXPERTPATH)
 
@@ -77,7 +77,7 @@ if __name__ == "__main__":
 
     model = PPO2(CustomPolicy, env, verbose=1)
 
-    model.pretrain(dataset, n_epochs=500)
+    model.pretrain(dataset, n_epochs=1000)
 
     model.learn(total_timesteps=TRAIN_STEPS+1, callback=cb)
     obs = env.reset()

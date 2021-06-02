@@ -153,3 +153,22 @@ class E2EIANEnv(IANEnv):
         obs = super(E2EIANEnv, self).reset()
         h = self.encoder._encode_obs(obs, np.array([0,0,0]))
         return h
+
+class E2EIANEnvPretrain(E2EIANEnv):
+    def __init__(self, *args, **kwargs):
+        super(E2EIANEnvPretrain, self).__init__(*args, **kwargs)
+        N = _64*_64 + _RS
+        high = np.ones(N, dtype=np.float32)*np.inf
+        self.observation_space = spaces.Box(low=-high, high=high, dtype=np.float32)
+
+    def step(self, action):
+        h, reward, done, info = super(E2ENavRepEnvPretrain, self).step(action)
+        N = h.shape[0]
+        h = h.reshape((N,))
+        return h, reward, done, info
+
+    def reset(self):
+        h = super(E2ENavRepEnvPretrain, self).reset()
+        N = h.shape[0]
+        h = h.reshape((N,))
+        return h
