@@ -57,7 +57,7 @@ class CrowdSimWrapper(CrowdSim):
         Generates randomly located static obstacles (boxes and walls) in the environment.
             @param max_size: Max size in meters of the map
         """
-
+        self.obstacle_vertices = []
         main_room = np.array([[self.room_width,self.room_height],[-self.room_width,self.room_height],[-self.room_width,-self.room_height],[self.room_width,-self.room_height]])/2
         main_room = Room.from_vert(main_room)   
         axis = rng.choice([0,1])
@@ -107,13 +107,25 @@ class CrowdSimWrapper(CrowdSim):
                 for point in polygon:
                     polygon_list.append((point[0],point[1]))
                 self.obstacle_vertices.append(polygon_list)
-
+        print(self.obstacle_vertices)
             # if self.robot.policy.name != 'SDOADRL' and self.robot.policy.name != 'ORCA':
             #     self.create_observation_from_static_obstacles(obstacles)
     
 
 
-
+def temp_flatten(contours):
+    n_total_vertices = len(np.array(contours).flatten())/2 + len(contours)
+    n_total_vertices = sum( [ len(contour) for contour in contours])+ len(contours)
+    print("total vert: ", n_total_vertices)
+    print(np.array(contours))
+    flat_contours = np.zeros((n_total_vertices, 3), dtype=np.float32)
+    v = 0
+    for idx, polygon in enumerate(contours):
+        # add first vertex last to close polygon
+        for vertex in polygon + polygon[:1]:
+            flat_contours[v,:] = np.array([idx, vertex[0], vertex[1]])
+            v += 1
+    return flat_contours
 
 class CurriculumEnv(NavRepTrainEnv):
     """Curiculum Env Wrapper"""
@@ -150,6 +162,30 @@ class CurriculumEnv(NavRepTrainEnv):
             env.robot.print_info()
 
         self.soadrl_sim = env
+
+    def _add_border_obstacle(self):
+        return
+
+    def reset(self):
+        self.steps_since_reset = 0
+        self.episode_reward = 0
+        _, _ = self.soadrl_sim.reset(self.scenario, compute_local_map=False)
+        random_rot = ActionXYRot(0, 0, 10.*(np.random.random()-0.5))
+        self.soadrl_sim.step(random_rot, compute_local_map=False, border=self.border)
+        if not self.LEGACY_MODE:
+            self._add_border_obstacle()
+        contours = self.soadrl_sim.obstacle_vertices
+        #print("contours: ", contours)
+        #self.flat_contours = flatten_contours(contours)
+        self.flat_contours = temp_flatten(contours)
+        #print("flat contours: ", self.flat_contours)
+        self.distances_travelled_in_base_frame = np.zeros((len(self.soadrl_sim.humans), 3))
+        obs = self._convert_obs()
+        if self.LEGACY_MODE:
+            state, local_map, reward, done, info = self.soadrl_sim.step(
+                ActionXYRot(0, 0, 0), compute_local_map=True, border=self.border)
+            obs = (state, local_map)
+        return obs
 
 if __name__=='__main__' :
     from navrep.tools.envplayer import EnvPlayer

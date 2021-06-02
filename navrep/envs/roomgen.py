@@ -1,12 +1,10 @@
-from gym.envs import classic_control
 import numpy as np
-import matplotlib.pyplot as plt
-from matplotlib.patches import Circle, Wedge, Polygon
-from crowd_sim.envs.crowd_sim import CrowdSim
-from navrep.envs.navreptrainenv import NavRepTrainEnv
-from crowd_sim.envs.utils.robot import Robot
-import os
-from crowd_nav.policy.network_om import SDOADRL
+# import matplotlib.pyplot as plt
+# from matplotlib.patches import Circle, Wedge, Polygon
+# from crowd_sim.envs.crowd_sim import CrowdSim
+# from crowd_sim.envs.utils.robot import Robot
+# import os
+# from crowd_nav.policy.network_om import SDOADRL
 rng = np.random.default_rng(12345)
 
 class Room(object):
@@ -210,98 +208,66 @@ def split_room(room, axis, corridor_w):
         room2.add_door()
     return [room1, room2]
 
-class CrowdSimRoomGen(CrowdSim):
-    def __init__(self):
-        super(CrowdSimRoomGen, self).__init__()
-        self.room_width = 15
-        self.room_height = 12
-        self.min_room_side_len = 1.5
-        self.num_corridors = 4
-        self.corridor_width = 1.5
-        self.subdivide_large_rooms = True
-        self.subdivide_area_limits = 30
-        self.wall_width = 0.15
-        self.door_width = 0.9
+# class CrowdSimRoomGen(CrowdSim):
+#     def __init__(self):
+#         super(CrowdSimRoomGen, self).__init__()
+#         self.room_width = 15
+#         self.room_height = 12
+#         self.min_room_side_len = 1.5
+#         self.num_corridors = 4
+#         self.corridor_width = 1.5
+#         self.subdivide_large_rooms = True
+#         self.subdivide_area_limits = 30
+#         self.wall_width = 0.15
+#         self.door_width = 0.9
     
-    def generate_static_map_input(self):
-        main_room = np.array([[self.room_width,self.room_height],[-self.room_width,self.room_height],[-self.room_width,-self.room_height],[self.room_width,-self.room_height]])/2
-        main_room = Room.from_vert(main_room)   
-        axis = rng.choice([0,1])
-        rooms = []
-        rooms.append(main_room)
-        split = main_room.split_room(axis, self.corridor_width)
-        rooms = [r for r in split if  min(r.dim[0],r.dim[1]) > self.min_room_side_len]
+#     def generate_static_map_input(self):
+#         main_room = np.array([[self.room_width,self.room_height],[-self.room_width,self.room_height],[-self.room_width,-self.room_height],[self.room_width,-self.room_height]])/2
+#         main_room = Room.from_vert(main_room)   
+#         axis = rng.choice([0,1])
+#         rooms = []
+#         rooms.append(main_room)
+#         split = main_room.split_room(axis, self.corridor_width)
+#         rooms = [r for r in split if  min(r.dim[0],r.dim[1]) > self.min_room_side_len]
 
-        # Creates corridors
-        for i in range(self.num_corridors):
-            axis = 1 - axis
-            #corridor_w *= 0.9
-            num = len(rooms)
-            for i in range(num):
-                room = rooms.pop(0)
-                split = room.split_room(axis, self.corridor_width)
-                split = [r for r in split if min(r.dim[0],r.dim[1]) > self.min_room_side_len]
-                rooms+= split if split else [room]
-            r_idx = np.argsort([r.get_area() for r in rooms])#np.arange(len(rooms))
-            rooms = [rooms[i] for i in r_idx]
+#         # Creates corridors
+#         for i in range(self.num_corridors):
+#             axis = 1 - axis
+#             #corridor_w *= 0.9
+#             num = len(rooms)
+#             for i in range(num):
+#                 room = rooms.pop(0)
+#                 split = room.split_room(axis, self.corridor_width)
+#                 split = [r for r in split if min(r.dim[0],r.dim[1]) > self.min_room_side_len]
+#                 rooms+= split if split else [room]
+#             r_idx = np.argsort([r.get_area() for r in rooms])#np.arange(len(rooms))
+#             rooms = [rooms[i] for i in r_idx]
 
-        if self.subdivide_large_rooms:
-            big_rooms = [i for i,r in enumerate(rooms) if r.get_area() > self.subdivide_area_limits and r.corridor_sides]
-            removed = []
-            while big_rooms:
-                for i, br_idx in enumerate(big_rooms):
-                    room = rooms.pop(br_idx-i)
-                    axis = np.argmax(room.dim)
-                    if not any(axis == np.mod(room.get_corridor_sides(),2)):
-                        axis = 1 - axis
-                    for j in range(4):
-                        split = room.split_room(axis, 0)
-                        split_if = [min(r.dim[0],r.dim[1]) > self.min_room_side_len for r in split]
-                        if all(split_if):
-                            rooms+= split
-                            break
-                        if j==3:
-                            removed += [room]
-                big_rooms = [i for i,r in enumerate(rooms) if r.get_area() > self.subdivide_area_limits and r.corridor_sides]
-            rooms += removed
-        for room in rooms:
-            # for polygon in room.get_polygons():
-            #     self.obstacle_vertices.append(polygon)
-            # alternative that for sure uses same 
-            for polygon in room.get_polygons():
-                polygon_list = []
-                for point in polygon:
-                    polygon_list.append((point[0],point[1]))
-                self.obstacle_vertices.append(polygon_list)
-
-class NavRepTrainRoomGen(NavRepTrainEnv):
-    def __init__(self, scenario, silent, legacy_mode, adaptive, lidar_legs, collect_statistics):
-        super(NavRepTrainRoomGen, self).__init__(scenario=scenario, silent=silent, legacy_mode=legacy_mode, adaptive=adaptive, lidar_legs=lidar_legs, collect_statistics=collect_statistics)
-
-    def _make_env(self, silent=False):
-        # Create env
-        config_dir = resource_filename('crowd_nav', 'config')
-        config_file = os.path.join(config_dir, 'test_soadrl_static.config')
-        config_file = os.path.expanduser(config_file)
-        config = configparser.RawConfigParser()
-        config.read(config_file)
-
-        env = CrowdSimRoomGen()
-        env.configure(config, silent=silent)
-        robot = Robot(config, 'humans')
-        env.set_robot(robot)
-
-        policy = SDOADRLDummyPolicy()
-        policy.configure(config)
-        if self.LEGACY_MODE:
-            sess = tf.Session()
-            policy = SDOADRL()
-            policy.configure(sess, 'global', config)
-            policy.set_phase('test')
-            policy.load_model(os.path.expanduser('~/soadrl/Final_models/angular_map_full_FOV/rl_model'))
-
-        env.robot.set_policy(policy)
-        if not silent:
-            env.robot.print_info()
-
-        self.soadrl_sim = env
+#         if self.subdivide_large_rooms:
+#             big_rooms = [i for i,r in enumerate(rooms) if r.get_area() > self.subdivide_area_limits and r.corridor_sides]
+#             removed = []
+#             while big_rooms:
+#                 for i, br_idx in enumerate(big_rooms):
+#                     room = rooms.pop(br_idx-i)
+#                     axis = np.argmax(room.dim)
+#                     if not any(axis == np.mod(room.get_corridor_sides(),2)):
+#                         axis = 1 - axis
+#                     for j in range(4):
+#                         split = room.split_room(axis, 0)
+#                         split_if = [min(r.dim[0],r.dim[1]) > self.min_room_side_len for r in split]
+#                         if all(split_if):
+#                             rooms+= split
+#                             break
+#                         if j==3:
+#                             removed += [room]
+#                 big_rooms = [i for i,r in enumerate(rooms) if r.get_area() > self.subdivide_area_limits and r.corridor_sides]
+#             rooms += removed
+#         for room in rooms:
+#             # for polygon in room.get_polygons():
+#             #     self.obstacle_vertices.append(polygon)
+#             # alternative that for sure uses same 
+#             for polygon in room.get_polygons():
+#                 polygon_list = []
+#                 for point in polygon:
+#                     polygon_list.append((point[0],point[1]))
+#                 self.obstacle_vertices.append(polygon_list)
