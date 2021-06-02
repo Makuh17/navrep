@@ -43,16 +43,16 @@ if __name__ == "__main__":
 
     N_ENVS = 6
     if args.debug:
-        env = DummyVecEnv([lambda: E2ENavRepEnvPretrain(silent=True, scenario='test', adaptive=False)]*N_ENVS)
+        env = DummyVecEnv([lambda: E2ENavRepEnvPretrain(silent=True, scenario='train', adaptive=False)]*N_ENVS)
     else:
-        env = SubprocVecEnv([lambda: E2ENavRepEnvPretrain(silent=True, scenario='test', adaptive=False)]*N_ENVS,
+        env = SubprocVecEnv([lambda: E2ENavRepEnvPretrain(silent=True, scenario='train', adaptive=False)]*N_ENVS,
                             start_method='spawn')
-    eval_env = E2ENavRepEnvPretrain(silent=True, scenario='test', adaptive=False)
+    eval_env = E2ENavRepEnvPretrain(silent=True, scenario='train', adaptive=False)
     # eval_env.soadrl_sim.human_num = 5
     # eval_env.soadrl_sim.num_walls = 5
     # eval_env.soadrl_sim.num_circles = 5
 
-    pretrain_env = E2ENavRepEnvPretrain(silent=True, scenario='test', adaptive=False )
+    pretrain_env = E2ENavRepEnvPretrain(silent=True, scenario='train', adaptive=False )
     # pretrain_env.soadrl_sim.human_num = 5
     # pretrain_env.soadrl_sim.num_walls = 5
     # pretrain_env.soadrl_sim.num_circles = 5
