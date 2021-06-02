@@ -17,6 +17,7 @@ from crowd_sim.envs.utils.robot import Robot
 from crowd_nav.policy.network_om import SDOADRL
 from crowd_sim.envs.utils.action import ActionXYRot
 from crowd_sim.envs.utils.info import Collision, CollisionOtherAgent, ReachGoal
+from navrep.envs.roomgen import CrowdSimRoomGen
 
 PROGRESS_WEIGHT = 0.001
 
@@ -485,6 +486,38 @@ class NavRepTrainEnv(gym.Env):
 
     def _get_dt(self):
         return self.soadrl_sim.time_step
+
+class NavRepTrainRoomGen(NavRepTrainEnv):
+    def __init__(self, scenario, silent, legacy_mode, adaptive, lidar_legs, collect_statistics):
+        super(NavRepTrainRoomGen, self).__init__(scenario=scenario, silent=silent, legacy_mode=legacy_mode, adaptive=adaptive, lidar_legs=lidar_legs, collect_statistics=collect_statistics)
+
+    def _make_env(self, silent=False):
+        # Create env
+        config_dir = resource_filename('crowd_nav', 'config')
+        config_file = os.path.join(config_dir, 'test_soadrl_static.config')
+        config_file = os.path.expanduser(config_file)
+        config = configparser.RawConfigParser()
+        config.read(config_file)
+
+        env = CrowdSimRoomGen()
+        env.configure(config, silent=silent)
+        robot = Robot(config, 'humans')
+        env.set_robot(robot)
+
+        policy = SDOADRLDummyPolicy()
+        policy.configure(config)
+        if self.LEGACY_MODE:
+            sess = tf.Session()
+            policy = SDOADRL()
+            policy.configure(sess, 'global', config)
+            policy.set_phase('test')
+            policy.load_model(os.path.expanduser('~/soadrl/Final_models/angular_map_full_FOV/rl_model'))
+
+        env.robot.set_policy(policy)
+        if not silent:
+            env.robot.print_info()
+
+        self.soadrl_sim = env
 
 
 if __name__ == "__main__":
