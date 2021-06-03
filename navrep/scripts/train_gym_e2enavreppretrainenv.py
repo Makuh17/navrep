@@ -48,20 +48,20 @@ if __name__ == "__main__":
         env = SubprocVecEnv([lambda: E2ENavRepEnvPretrain(silent=True, scenario='train', adaptive=True)]*N_ENVS,
                             start_method='spawn')
     eval_env = E2ENavRepEnvPretrain(silent=True, scenario='train', adaptive=True)
-    eval_env.soadrl_sim.human_num = 2
-    eval_env.soadrl_sim.num_walls = 1
-    eval_env.soadrl_sim.num_circles = 0
+    # eval_env.soadrl_sim.human_num = 2
+    # eval_env.soadrl_sim.num_walls = 1
+    # eval_env.soadrl_sim.num_circles = 0
 
-    pretrain_env = E2ENavRepEnvPretrain(silent=True, scenario='test', adaptive=True )
-    pretrain_env.soadrl_sim.human_num = 2
-    pretrain_env.soadrl_sim.num_walls = 1
-    pretrain_env.soadrl_sim.num_circles = 0
+    pretrain_env = E2ENavRepEnvPretrain(silent=True, scenario='train', adaptive=True )
+    # pretrain_env.soadrl_sim.human_num = 2
+    # pretrain_env.soadrl_sim.num_walls = 1
+    # pretrain_env.soadrl_sim.num_circles = 0
 
     def test_env_fn():  # noqa
         ret_env = E2ENavRepEnvPretrain(silent=True, scenario='test', adaptive= False)
-        pretrain_env.soadrl_sim.human_num = 2
-        pretrain_env.soadrl_sim.num_walls = 1
-        pretrain_env.soadrl_sim.num_circles = 0
+        # pretrain_env.soadrl_sim.human_num = 2
+        # pretrain_env.soadrl_sim.num_walls = 1
+        # pretrain_env.soadrl_sim.num_circles = 0
         return ret_env
     cb = NavrepEvalCallback(eval_env, test_env_fn=test_env_fn,
                             logpath=LOGPATH, savepath=MODELPATH, verbose=1, render=args.render)
