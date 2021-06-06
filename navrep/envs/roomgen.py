@@ -78,6 +78,7 @@ class Room(object):
             return [self.get_vert()]
         else:
             polygon_list = []
+            rectangle_list = []
             door_add = np.array([[0,-1],[1,0],[0,1],[-1,0]])*self.wall_thickness
             vert_add = np.array([[-1,-1],[1,-1],[1,1],[-1,1]])*self.wall_thickness
             verts = self.get_vert()
@@ -103,6 +104,15 @@ class Room(object):
             vert_base = np.concatenate([last_door[0][0].reshape((1,-1)), vert_base, cur_door[0][1].reshape((1,-1))])
             vert_base_prime = np.concatenate([(last_door[0][0]+ door_add[last_door[1]]).reshape((1,-1)),
                                              vert_base_prime, (cur_door[0][1]+ door_add[cur_door[1]]).reshape((1,-1))])
+            for j in range(vert_base.shape[0]-1):
+                outer = vert_base[j:j+2].copy()
+                outer_prime = vert_base_prime[j:j+2].copy()
+                axis = np.argwhere(outer[0]==outer[1])
+                inner = outer.copy()
+                inner[:,axis] = outer_prime[:,axis]
+                inner = np.flip(inner, 0)
+                rectangle_list.append(np.concatenate([outer, inner]))
+
             vert_base_prime = np.flip(vert_base_prime,0)
             
             polygon_list.append(np.concatenate([vert_base, vert_base_prime]).copy())
@@ -116,11 +126,21 @@ class Room(object):
                 vert_base = np.concatenate([cur_door[0][0].reshape((1,-1)), vert_base, next_door[0][1].reshape((1,-1))])
                 vert_base_prime = np.concatenate([(cur_door[0][0]+ door_add[cur_door[1]]).reshape((1,-1)),
                                              vert_base_prime, (next_door[0][1]+ door_add[next_door[1]]).reshape((1,-1))])
+                for j in range(vert_base.shape[0]-1):
+                    outer = vert_base[j:j+2].copy()
+                    outer_prime = vert_base_prime[j:j+2].copy()
+                    axis = np.argwhere(outer[0]==outer[1])
+                    inner = outer.copy()
+                    inner[:,axis] = outer_prime[:,axis]
+                    inner = np.flip(inner, 0)
+                    rectangle_list.append(np.concatenate([outer, inner]))
+                
                 vert_base_prime = np.flip(vert_base_prime,0)
                 
                 polygon_list.append(np.concatenate([vert_base, vert_base_prime]).copy())
             
-        return polygon_list
+        return polygon_list, rectangle_list
+    
     
     def set_corridor_sides(self, l):
         l = set(l)

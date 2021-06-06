@@ -102,7 +102,8 @@ class CrowdSimWrapper(CrowdSim):
             # for polygon in room.get_polygons():
             #     self.obstacle_vertices.append(polygon)
             # alternative that for sure uses same 
-            for polygon in room.get_polygons():
+            polys, rects = room.get_polygons()
+            for polygon in polys:
                 polygon_list = []
                 for point in polygon:
                     polygon_list.append((point[0],point[1]))
