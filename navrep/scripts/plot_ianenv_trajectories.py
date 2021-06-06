@@ -101,7 +101,7 @@ def plot_ianenv_statistics(S, ianenv, focus_scenario=None):
     print("Goal reached: {}%".format(goal_reached_perc))
     print("Timed out: {}%".format(timed_out_perc))
     print("Collisioned out: {}%".format(collisioned_out_perc))
-    plt.pause(1.)
+    plt.pause(100.)
 
 
 if __name__ == "__main__":

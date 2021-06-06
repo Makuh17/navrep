@@ -56,7 +56,7 @@ if __name__ == '__main__':
     collect_trajectories = True
 
     # find compatible c models
-    gym_dir = os.path.expanduser("~/navrep/models/gym")
+    gym_dir = os.path.expanduser("~/navrep/models/regular")
     candidates = sorted(os.listdir(gym_dir))
     compatible = [name for name in candidates if args.backend + "_" + args.encoding in name]
     if not compatible:
