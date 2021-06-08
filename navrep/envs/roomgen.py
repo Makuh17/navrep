@@ -13,7 +13,7 @@ class Room(object):
         self.corridor_sides = []
         self.door = []
         self.door_w = 0.9
-        self.wall_thickness = 0.1
+        self.wall_thickness = 0.5
     def update_hwc(self, h, w, c):
         self.dim = np.array([w,h])
         self.c = c

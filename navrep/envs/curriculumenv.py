@@ -1,3 +1,4 @@
+from numpy import random
 from navrep.envs.navreptrainenv import NavRepTrainEnv, SDOADRLDummyPolicy
 
 import configparser
@@ -50,14 +51,17 @@ class CrowdSimWrapper(CrowdSim):
         self.corridor_width = 1.5
         self.subdivide_large_rooms = True
         self.subdivide_area_limits = 30
-        self.wall_width = 0.15
+        self.wall_width = 0.1
         self.door_width = 0.9
-    def generate_static_map_input(self, max_size, phase, config=None):
+    def generate_static_map_input(self, phase, config=None):
         """!
         Generates randomly located static obstacles (boxes and walls) in the environment.
             @param max_size: Max size in meters of the map
         """
+        import matplotlib.pyplot as plt
+        from matplotlib.patches import Circle, Wedge, Polygon
         self.obstacle_vertices = []
+        obstacles = []
         main_room = np.array([[self.room_width,self.room_height],[-self.room_width,self.room_height],[-self.room_width,-self.room_height],[self.room_width,-self.room_height]])/2
         main_room = Room.from_vert(main_room)   
         axis = rng.choice([0,1])
@@ -98,6 +102,12 @@ class CrowdSimWrapper(CrowdSim):
                             removed += [room]
                 big_rooms = [i for i,r in enumerate(rooms) if r.get_area() > self.subdivide_area_limits and r.corridor_sides]
             rooms += removed
+        
+        max_size = max(self.room_height,self.room_width)
+        grid_size = int(round(max_size / self.map_resolution))
+        self.map = np.ones((grid_size, grid_size))
+            
+        fig, ax = plt.subplots(figsize=[10,10])  
         for room in rooms:
             # for polygon in room.get_polygons():
             #     self.obstacle_vertices.append(polygon)
@@ -107,10 +117,74 @@ class CrowdSimWrapper(CrowdSim):
                 polygon_list = []
                 for point in polygon:
                     polygon_list.append((point[0],point[1]))
+
                 self.obstacle_vertices.append(polygon_list)
-        print(self.obstacle_vertices)
-            # if self.robot.policy.name != 'SDOADRL' and self.robot.policy.name != 'ORCA':
-            #     self.create_observation_from_static_obstacles(obstacles)
+            # we need to have agreement between obstacle vertecies and map. In the long run, we could probably implement
+            # out own step with colission checking and so on, but for now we should probably just convert the generated
+            # obstacle verticies to point in the grid.  Also, look into the expert policy implementation to see how to
+            # create the self.map 
+            
+            for rect in rects:
+                centre = np.mean(rect, axis= 0)
+                centre_scale = centre/self.map_resolution
+                dim = np.max(rect, axis=0)-np.min(rect,axis=0)
+                dim_round = (int(round(dim[0]/self.map_resolution)),int(round(dim[1]/self.map_resolution)))
+                patch = np.zeros([dim_round[0],dim_round[1]])
+                location_x_m = centre[0] * self.map_resolution
+                location_y_m = centre[1] * self.map_resolution
+                polygon = Polygon(rect/self.map_resolution+75,color='g', fill=False)
+                ax.add_patch(polygon)
+                ax.plot(centre_scale[0]+75, centre_scale[1]+75, '.')
+                obstacles.append(Obstacle(int(round(centre_scale[0] + grid_size / 2.0)),
+                                      int(round(centre_scale[1] + grid_size / 2.0)), dim_round, patch))
+
+        for obstacle in obstacles:
+            self.map[obstacle.location_x,obstacle.location_y] = 0
+            if obstacle.location_x > obstacle.dim[0] / 2.0 and \
+                    obstacle.location_x < grid_size - obstacle.dim[0] / 2.0 and \
+                    obstacle.location_y > obstacle.dim[1] / 2.0 and \
+                    obstacle.location_y < grid_size - obstacle.dim[1] / 2.0:
+
+                start_idx_x = int(
+                    round(
+                        obstacle.location_x -
+                        obstacle.dim[0] /
+                        2.0))
+                start_idx_y = int(
+                    round(
+                        obstacle.location_y -
+                        obstacle.dim[1] /
+                        2.0))
+                self.map[start_idx_x:start_idx_x +
+                         obstacle.dim[0], start_idx_y:start_idx_y +
+                         obstacle.dim[1]] = np.minimum(self.map[start_idx_x:start_idx_x +
+                                                                obstacle.dim[0], start_idx_y:start_idx_y +
+                                                                obstacle.dim[1]], obstacle.patch)
+
+            else:
+                for idx_x in range(obstacle.dim[0]):
+                    for idx_y in range(obstacle.dim[1]):
+                        shifted_idx_x = idx_x - obstacle.dim[0] / 2.0
+                        shifted_idx_y = idx_y - obstacle.dim[1] / 2.0
+                        submap_x = int(
+                            round(
+                                obstacle.location_x +
+                                shifted_idx_x))
+                        submap_y = int(
+                            round(
+                                obstacle.location_y +
+                                shifted_idx_y))
+                        if submap_x > 0 and submap_x < grid_size and submap_y > 0 and submap_y < grid_size:
+                            self.map[submap_x,submap_y] = obstacle.patch[idx_x, idx_y]
+        # for obstacle in obstacles:
+        #     self.map[obstacle.location_x,obstacle.location_y] = 1
+        print("grid size: ", grid_size)
+        #fig, ax = plt.subplots(figsize=[15,15])
+        ax.imshow(self.map.astype(int).T,cmap='Greys',interpolation='none')
+        plt.show()
+        #print(self.obstacle_vertices)
+        if self.robot.policy.name != 'SDOADRL' and self.robot.policy.name != 'ORCA':
+            self.create_observation_from_static_obstacles(obstacles)
     
 
 
