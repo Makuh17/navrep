@@ -152,7 +152,7 @@ class Room(object):
     def split_room(self, axis, corridor_w):
         min_, max_ = np.min(self.get_vert()[:,axis]),np.max(self.get_vert()[:,axis])
         split = rng.random()*(max_-min_)+min_
-        split = rng.beta(0.5,0.5)*(max_-min_-corridor_w)+min_+corridor_w/2
+        split = rng.beta(5,5)*(max_-min_-corridor_w)+min_+corridor_w/2
         room1 = self.get_vert().copy()
         result = []
         room1[room1[:,axis]==min_,axis] = split+corridor_w/2
