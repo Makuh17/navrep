@@ -93,7 +93,8 @@ class FastmarchORCAPolicy(object):
                     joint_state.self_state.gx = robot_pos_xy[0] + np.sign(virtual_goal[0] - robot_pos_xy[0])#*(virtual_goal[1] - robot_pos_xy[1]) #virtual_goal[0]
                 elif idx == 1:
                     joint_state.self_state.gy = robot_pos_xy[1] + np.sign(virtual_goal[1] - robot_pos_xy[1])#*(virtual_goal[0] - robot_pos_xy[0]) #virtual_goal[1]
-            
+
+        # get action from ORCA    
         action = self.simulator.predict(
             joint_state,
             env.soadrl_sim.obstacle_vertices,
