@@ -2,6 +2,7 @@
 Transformer blocks taken from Karpathy's minGPT (MIT License) https://github.com/karpathy/minGPT
 """
 
+from navrep.tools.curiosity_debug import measure_duration
 import random
 import numpy as np
 import math
@@ -320,7 +321,7 @@ class GPT(nn.Module):
         img_rec_t = self.convVAE.decode(z_t) # b, CH, W, H
         img_rec = np.moveaxis(img_rec_t.detach().cpu().numpy(), 1, -1)
         return img_rec
-
+    
     def get_h(self, gpt_sequence):
         """ for compat with encodedenv
         gpt sequence is a list of dicts, one for each step in the sequence.
@@ -352,6 +353,7 @@ class GPT(nn.Module):
         h = h[0, -1]  # only batch, last item in sequence
         return h
 
+    
 def save_checkpoint(model, ckpt_path):
     if ckpt_path is not None:
         ckpt_model = model.module if hasattr(model, "module") else model

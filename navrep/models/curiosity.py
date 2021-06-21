@@ -394,16 +394,24 @@ class CuriosityTrainer(object):
         
 
 class CuriosityWrapper(gym.Wrapper):
-    def __init__(self, env, use_gpu=True, tboard_debug=True, icm_module_path=None, feature_tf='random', verbose_icm_training=0, **kwargs):
+    def __init__(self, env, use_gpu=True, tboard_debug=True, icm_module_path=None, feature_tf='random', verbose_icm_training=0, disable_training=False, obsv_mod=False , **kwargs):
         super().__init__(env, **kwargs)
         self.env = env
-        #self._get_dt = env._get_dt
-        #self._get_viewer = env._get_viewer
+        self._get_dt = env._get_dt
+        self._get_viewer = env._get_viewer
 
-        self.action_shape = env.action_space.shape
-        self.obsv_shape = env.observation_space.shape
+        self.action_shape = env.action_space.shape        
+        self.obsv_shape = env.observation_space.shape        
 
-        self.cur_reward_scaling = 1e4
+        self.obsv_mod = obsv_mod
+
+        if self.obsv_mod :
+            from gym import spaces
+            self.observation_space = spaces.Box(low=-np.inf, high=np.inf,
+                                            shape=(4103,), dtype=np.float32)
+
+        #self.cur_reward_scaling = 1e4
+        self.cur_reward_scaling = 1
         self.prev_obs = None
         self.feature_tf =  feature_tf
         #self.feature_tf = None
@@ -415,13 +423,11 @@ class CuriosityWrapper(gym.Wrapper):
         self.running_reward = 0
         self.running_extrinsic_rew = 0
         self.tboard_debug = tboard_debug
+        self.disable_training = disable_training
 
         self.icm = ICModule(
             action_size=self.action_shape[0], obsv_size=self.obsv_shape[0],use_feature_tf=self.feature_tf)
         
-        if icm_module_path is not None :
-            print('Loading ICM module from : ' + str(icm_module_path))
-            self.icm.load_state_dict(torch.load(icm_module_path))
         
         
         if use_gpu and torch.cuda.is_available():
@@ -429,9 +435,15 @@ class CuriosityWrapper(gym.Wrapper):
         else :
             self.device = torch.device('cpu')
 
+
+        if icm_module_path is not None :
+            print('Loading ICM module from : ' + str(icm_module_path))
+            self.icm.load_state_dict(torch.load(icm_module_path, map_location=self.device))
+
+
         self.icm.to(self.device)        
 
-        print(self.icm)
+        #print(self.icm)
         self.done = False
         #debug - tensorboard
         if tboard_debug == True :
@@ -458,6 +470,20 @@ class CuriosityWrapper(gym.Wrapper):
     def step(self, action):
         observation, reward, done, info = self.env.step(action)
         #print(reward)
+
+        if self.obsv_mod:
+            lidar = observation[:4096]
+            robot_state_and_goal = observation[-(_RS + 2):]
+            robot_state = robot_state_and_goal[:_RS]            
+            goal_z = robot_state_and_goal[-2:]
+
+            observation = observation[4096:]
+            observation = observation[:-2]
+            observation_out = np.concatenate([lidar, robot_state, goal_z])
+        else :
+            observation_out = observation
+
+
         reward_out = self.reward(action, reward, observation)
         #print("curiosity :" +str(reward_out))
 
@@ -466,14 +492,18 @@ class CuriosityWrapper(gym.Wrapper):
         if self.prev_obs is not None:
             self.replay_buffer.write(self.prev_obs, observation, action)
 
-        if self.steps_counter > 0  and self.steps_counter % self.steps_btw_training == 0:
+        if not self.disable_training and self.steps_counter > 0  and self.steps_counter % self.steps_btw_training == 0:
             #print('[{}] Training the intrisic reward module'.format(
             #    self.steps_counter))
             self.trainer.train_model()
 
         self.prev_obs = observation
         self.steps_counter += 1
-        return observation, reward_out, done, info
+
+        #print(observation_out.shape)
+
+
+        return observation_out, reward_out, done, info
 
     @torch.no_grad()
     def reward(self, action, reward, observation):
@@ -489,7 +519,7 @@ class CuriosityWrapper(gym.Wrapper):
             a = torch.from_numpy(action).float().to(self.device)
             a = a.view([-1] + list(a.size()))
             phi_next, phi_next_est = self.icm(s_prev, s_next, a)
-            intrinsic_reward = 0.5*torch.mean(torch.square(torch.sub(phi_next, phi_next_est))).cpu().numpy()
+            intrinsic_reward = 0.5*torch.mean(torch.square(torch.sub(phi_next, phi_next_est))).cpu().numpy()      
         else:
             #print('[{}] Starting without intrinsic reward'.format(self.steps_counter))
             intrinsic_reward = 0
@@ -498,8 +528,8 @@ class CuriosityWrapper(gym.Wrapper):
         # TODO Normalize or not - reward seem to be really
 
         # TODO remove
-        if rew < 100 :
-            rew = 0
+        #if rew < 100 :
+        #    rew = 0
         
         self.running_reward += rew
         self.running_extrinsic_rew += reward
@@ -512,10 +542,25 @@ class CuriosityWrapper(gym.Wrapper):
         #print(rew)
         return rew
     def observation(self, observation):
-        return observation
+
+        if self.obsv_mod :
+            lidar = observation[:4096]
+            robot_state_and_goal = observation[-(_RS + 2):]
+            robot_state = robot_state_and_goal[:_RS]            
+            goal_z = robot_state_and_goal[-2:]
+
+            observation = observation[4096:]
+            observation = observation[:-2]
+            #print(observation.shape)
+            observation_out = np.concatenate([lidar, robot_state, goal_z])
+        else :
+            observation_out = observation
+
+        return observation_out
 
 
 if __name__ == '__main__':
+    os.environ["CUDA_VISIBLE_DEVICES"] = "-1"  # disable GPU
     print(torch.cuda.is_available())
     from navrep.envs.e2eenv import *
     import time
@@ -523,13 +568,15 @@ if __name__ == '__main__':
     #env = E2ENavRepEnvCuriosity()
     #env = E2E1DNavRepEnv()
     from navrep.envs.navreptrainencodedenv import *
-    env = NavRepTrainEncodedEnvCuriosity(backend='VAE_LSTM', encoding='V_ONLY', scenario='train')
+    env = NavRepTrainEncodedEnvCuriosity(backend='VAE_LSTM', encoding='VM+LIDAR', scenario='train')
 
-    wrapped_env = CuriosityWrapper(env, use_gpu=False, feature_tf=None,verbose_icm_training=1)
+    wrapped_env = CuriosityWrapper(env, use_gpu=False, feature_tf=None,verbose_icm_training=1, obsv_mod=True)
     #wrapped_env = CuriosityWrapper(env, icm_module_path='/home/robin/navrep/models/curiosity/CURIOSITY_ICM_51_05_12_18_10_18.pt')
     wrapped_env.reset()
+    #print(wrapped_env.obsv_shape)
+    #print(wrapped_env.observation_space.shape)
     #trainer = CuriosityTrainer(wrapped_env.replay_buffer, wrapped_env.icm)
-    num_steps = 1000
+    num_steps = 10
     start_time = time.time()
 
     print(wrapped_env.observation_space.shape)
@@ -538,11 +585,11 @@ if __name__ == '__main__':
         print('Environment step :  ' + str(i))
         #obsv, reward, done, info = wrapped_env.step(wrapped_env.action_space.sample())
         obsv, reward, done, info = wrapped_env.step(np.array([1,0]))
-        print(obsv.shape)
+        #print(obsv.shape)
         if done :
             wrapped_env.reset()
             continue
-        wrapped_env.render()
+        #wrapped_env.render()
     end_time = time.time()
     total_time = end_time - start_time
     print('Total time :{}, time per step:{}'.format(total_time, total_time/num_steps))

@@ -11,7 +11,7 @@ from torch.utils.tensorboard import SummaryWriter
 from datetime import datetime
 
 from navrep.envs.encodedenv import EnvEncoder
-import tensorflow as tf
+#import tensorflow as tf
 from navrep.models.gpt_curiosity import GPT, GPTConfig, load_checkpoint
 import os
 from navrep.scripts.train_gpt import _Z, _H
@@ -43,13 +43,12 @@ class CustomEncoder(object):
             self.encoding_dim = _H + _RS
         else:
             raise NotImplementedError
-        self.observation_space = spaces.Box(low=-np.inf, high=np.inf,
+        self.observation_space = gym.spaces.Box(low=-np.inf, high=np.inf,
                                     shape=(self.encoding_dim,), dtype=np.float32)
 
         self._Z = _Z
         self._H = _H
-
-
+    
     
     def _encode_obs(self, obs, action):
         # convert lidar scan to obs
@@ -60,7 +59,9 @@ class CustomEncoder(object):
         self.last_lidar_obs = lidar_obs  # for rendering purposes
 
         # obs to z, mu, logvar
-        mu, logvar = self.icm.model.encode_mu_logvar(lidar_obs)
+        
+        with torch.no_grad():
+            mu, logvar = self.icm.model.encode_mu_logvar(lidar_obs)
         mu = mu[0]
         logvar = logvar[0]
         s = logvar.shape
@@ -69,6 +70,7 @@ class CustomEncoder(object):
         else:
             lidar_z = mu + np.exp(logvar / 2.0) * np.random.randn(*s)
 
+        
         # encode obs through V + M
         self.lidar_z = lidar_z
         if self.encoding == "V_ONLY":
@@ -77,13 +79,16 @@ class CustomEncoder(object):
             # get h
             self.gpt_sequence.append(dict(obs=lidar_obs[0], state=obs[1][:2], action=action))
             self.gpt_sequence = self.gpt_sequence[:BLOCK_SIZE]
-            h = self.icm.model.get_h(self.gpt_sequence)
+
+            with torch.no_grad():
+                h = self.icm.model.get_h(self.gpt_sequence)
+            
             # encoded obs
             if self.encoding == "VM":
                 encoded_obs = np.concatenate([self.lidar_z, obs[1], h], axis=0)
             elif self.encoding == "M_ONLY":
                 encoded_obs = np.concatenate([obs[1], h], axis=0)
-        
+
         return encoded_obs
 
     def reset(self):
@@ -95,17 +100,17 @@ class CustomEncoder(object):
 
 
 class ICModule(object):
-    def __init__(self, gpu=False):
+    def __init__(self, gpu=False, use_img_pred=True):
         super(ICModule, self).__init__()
         gpt_model_path = os.path.expanduser("~/navrep/models/W/navreptraingpt")
         BLOCK_SIZE = 32  # sequence length (context)
         mconf = GPTConfig(BLOCK_SIZE, _H)
-        model = GPT(mconf, gpu=gpu)
-        load_checkpoint(model, gpt_model_path, gpu=gpu)
-        self.model = model
+        self.model = GPT(mconf, gpu=gpu)
+        load_checkpoint(self.model, gpt_model_path, gpu=gpu)
         self.rings_def = generate_rings(64, 64)
         self.lidar_mode =  "rings"
         self.loss = nn.MSELoss()
+        self.use_img_pred = use_img_pred
     
     def get_encoded_observation(self, obsv):
         lidar, state = obsv
@@ -113,7 +118,7 @@ class ICModule(object):
         lidar_obs = scans_to_lidar_obs(scan, self.lidar_mode, self.rings_def, channel_first=False)
         z_true = self.model.encode(lidar_obs)
         return z_true, state
-
+    
     def get_intrinsic_reward(self, obsv_cur, obsv_next, done_cur, action):
         lidar_cur, state_cur = obsv_cur
         lidar_next, state_next = obsv_next
@@ -124,39 +129,44 @@ class ICModule(object):
         lidar_obs_cur = scans_to_lidar_obs(scan_cur, self.lidar_mode, self.rings_def, channel_first=False)
         lidar_obs_next = scans_to_lidar_obs(scan_next, self.lidar_mode, self.rings_def, channel_first=False)
         
+        with torch.no_grad() :
+            # next state prediction in z space
+            img = lidar_obs_cur[0]
+            img = img.reshape((1,1,1,64,64))
+            #img.shape
+            img_t = torch.tensor(img, dtype=torch.float)
+            img_t = self.model._to_correct_device(img_t)
 
-        # next state prediction in z space
-        img = lidar_obs_cur[0]
-        img = img.reshape((1,1,1,64,64))
-        img.shape
-        img_t = torch.tensor(img, dtype=torch.float)
-        self.model._to_correct_device(img_t)
+            action = action.reshape((1,1,-1))
+            #action.shape
+            action_t = torch.tensor(action, dtype=torch.float)
+            action_t =  self.model._to_correct_device(action_t)
 
-        action = action.reshape((1,1,-1))
-        action.shape
-        action_t = torch.tensor(action, dtype=torch.float)
-        action_t =  self.model._to_correct_device(action_t)
+            state_new = state_cur[:2] #only use goal ?
+            state_new = state_new.reshape((1,1,-1))
+            #state_new.shape
+            state_t = torch.tensor(state_new, dtype=torch.float)
+            state_t = self.model._to_correct_device(state_t)
 
-        state_new = state_cur[:2] #only use goal ?
-        state_new = state_new.reshape((1,1,-1))
-        state_new.shape
-        state_t = torch.tensor(state_new, dtype=torch.float)
-        state_t = self.model._to_correct_device(state_t)
+            dones = np.array([done_cur])
+            dones = dones.reshape((1,1,-1))
+            dones_t = torch.tensor(dones, dtype=torch.float)
+            dones_t = self.model._to_correct_device(dones_t)
 
-        dones = np.array([done_cur])
-        dones = dones.reshape((1,1,-1))
-        dones_t = torch.tensor(dones, dtype=torch.float)
-        dones_t = self.model._to_correct_device(dones_t)
-
-        img_pred, state_pred, z_pred, _ = self.model.predict(img_t, state_t, action_t, dones_t)
-        z_pred = z_pred.detach().cpu().numpy()
-
-        # true next state in z space
-        z_true = self.model.encode(lidar_obs_next)
+            #print(img_t.get_device())          
+            img_pred, state_pred, z_pred, _ = self.model.predict(img_t, state_t, action_t, dones_t)
         
-        # prediction error
-        reward = 0.5*np.mean(np.square(np.subtract(z_pred, z_true)))
 
+        if self.use_img_pred : 
+            img_next = lidar_obs_next[0]
+            img_next = img.reshape((1,1,1,64,64))           
+            reward = 0.5*np.mean(np.square(np.subtract(img_pred.cpu().numpy(), img_next)))
+        else :
+            z_pred = z_pred.cpu().numpy()
+            #true next state in z space
+            z_true = self.model.encode(lidar_obs_next)        
+            # prediction error
+            reward = 0.5*np.mean(np.square(np.subtract(z_pred, z_true)))
         return reward
        
     
@@ -173,15 +183,20 @@ class ICModuleEncodeEnv(object):
 
 # 
 class CuriosityWrapper(gym.Wrapper):
-    def __init__(self, env, use_gpu=True, tboard_debug=True, obsv_encoding='rings2d', feature_tf=None,**kwargs):
+    def __init__(self, env, use_gpu=True, tboard_debug=True, obsv_encoding='rings2d', reward_norm=False, feature_tf=None,**kwargs):
         super().__init__(env, **kwargs)
         self.env = env
-        #self._get_dt = env._get_dt
-        #self._get_viewer = env._get_viewer
+        self._get_dt = env._get_dt
+        self._get_viewer = env._get_viewer
 
         # TODO implement adaptive
-        self.avg_reward = 0.195343
-        self.std_reward = 0.035156
+        if reward_norm :
+            print('Warning :Only approximate reward normalization implemented')
+            self.avg_reward = 0.195343
+            self.std_reward = 0.035156
+        else :
+            self.avg_reward = 0
+            self.std_reward = 1
 
         self.prev_obs = None
         self.feature_tf =  feature_tf
@@ -191,7 +206,7 @@ class CuriosityWrapper(gym.Wrapper):
         self.running_extrinsic_rew = 0
         self.tboard_debug = tboard_debug
 
-        self.icm = ICModule()
+        self.icm = ICModule(use_gpu)
 
 
         # Set encoding of observation used for the RL agent
@@ -199,11 +214,11 @@ class CuriosityWrapper(gym.Wrapper):
             self.encoder = RingsLidarAndStateEncoder()
             self.action_space = gym.spaces.Box(low=-1, high=1, shape=(2,), dtype=np.float32)
             self.observation_space = self.encoder.observation_space
-        elif obsv_encoding=='z+rs':
+        elif obsv_encoding=='V_ONLY':
             self.encoder = CustomEncoder(self.icm, 'V_ONLY')
             self.action_space = gym.spaces.Box(low=-1, high=1, shape=(2,), dtype=np.float32)
             self.observation_space = self.encoder.observation_space
-        elif obsv_encoding=='z+h+rs':
+        elif obsv_encoding=='VM':
             self.encoder = CustomEncoder(self.icm, 'VM')
             self.action_space = gym.spaces.Box(low=-1, high=1, shape=(2,), dtype=np.float32)
             self.observation_space = self.encoder.observation_space
@@ -222,7 +237,7 @@ class CuriosityWrapper(gym.Wrapper):
         #    self.device = torch.device('cpu')
         #self.icm.to(self.device)        
 
-        print(self.icm)
+        #print(self.icm)
         self.done = False
         self.steps_counter = 0
         #debug - tensorboard
@@ -256,7 +271,7 @@ class CuriosityWrapper(gym.Wrapper):
 
         return self.observation(observation), reward_out, done, info
 
-
+    
     def reward(self, action, reward, observation, done):
         if self.prev_obs is not None:
             intrinsic_reward = self.icm.get_intrinsic_reward(self.prev_obs, observation, self.done, action)
@@ -298,11 +313,11 @@ if __name__ == '__main__':
 
     env = NavRepTrainEnv()
 
-    wrapped_env = CuriosityWrapper(env, use_gpu=False, feature_tf=None,tboard_debug=False, obsv_encoding='z+rs')
+    wrapped_env = CuriosityWrapper(env, use_gpu=False, feature_tf=None,tboard_debug=False, obsv_encoding='VM', reward_norm=False)
     #wrapped_env = CuriosityWrapper(env, icm_module_path='/home/robin/navrep/models/curiosity/CURIOSITY_ICM_51_05_12_18_10_18.pt')
     wrapped_env.reset()
     #trainer = CuriosityTrainer(wrapped_env.replay_buffer, wrapped_env.icm)
-    num_steps = 100
+    num_steps = 1000
     start_time = time.time()
 
     print(wrapped_env.observation_space.shape)
