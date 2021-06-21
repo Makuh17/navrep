@@ -2,7 +2,7 @@
 ![varch](media/curiosity_encoded_5_lstm.gif)
 ![varch](media/curiosity_encoded_env_15.gif)
 
-This is the branch which has implemented the curiosity driven learning approach.
+In this branch the curiosity driven learning approach was implemented.
 The repository contains 2 versions of the curiosity module :
 
 - [`curiosity.py`](navrep/models/curiosity.py)  
