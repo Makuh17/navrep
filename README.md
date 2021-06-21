@@ -8,6 +8,9 @@ This work aims to adapt the current framework with more realistic randomly gener
 
 While the map generation process is finished, implementation into the existing framework still has flaws, such as the collision checking not working as intented.
 
+An example of the new resulting maps from the new generator can be seen below
+![map_example](media/map_gen_example.png)
+
 ## Usage
 As mentioned, the environment is not functional yet, however it can be played using:
 ```bash
