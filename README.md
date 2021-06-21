@@ -8,6 +8,10 @@ This work explores the effects of initialising reinforcement learning using a pr
 - [`expert_policy.py`](navrep/tools/expert_policy.py)
   - Implements the expert policy and a method to record the actions and observations to create the expert data set.
 
+Below shows first and example of execution of the expert policy, and then execution of a pretrained policy.
+
+![expert](media/expert_policy.gif)
+![pretrained](media/pretrained_policy.gif)
 ## Usage
 To train a model using a pretrained initialisation, run:
 ```bash
