@@ -5,7 +5,7 @@ This is the branch which has implemented the curiosity driven learning approach.
 The repository contains 2 versions of the curiosity wrapper :
 
 - `curiosity.py`  : Contains the intrinsic curiosity module including custom dynamics and embedding networks
-- `curiosity_v2.py` : New version, where the predictor and embedding networks are coming directly from NavRep's encoded enviroments (VAE/GPT)
+- `curiosity_v2.py` : New version, where the predictor and embedding networks are coming directly from NavRep's encoded enviroments (VAE/LSTM/GPT)
 
 
 ## Train using the curiosity wrapper
