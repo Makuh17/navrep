@@ -1,8 +1,13 @@
 from datetime import datetime
 import os
 
-from stable_baselines import PPO2
-from stable_baselines.common.vec_env import SubprocVecEnv, DummyVecEnv
+#from stable_baselines import PPO2
+#from stable_baselines.common.vec_env import SubprocVecEnv, DummyVecEnv
+#from stable_baselines.common.policies import MlpPolicy
+
+from stable_baselines3 import PPO
+from stable_baselines3.common.vec_env import SubprocVecEnv, DummyVecEnv
+
 
 from navrep.tools.custom_policy import CustomPolicy, ARCH, _C
 from navrep.envs.e2eenv import E2ENavRepEnv, E2ENavRepEnvCuriosity
@@ -14,7 +19,6 @@ from navrep.models.curiosity_v2 import CuriosityWrapper
 
 from navrep.envs.navreptrainencodedenv import *
 
-from stable_baselines.common.policies import MlpPolicy
 
 if __name__ == "__main__":
     args, _ = parse_common_args()
@@ -38,9 +42,18 @@ if __name__ == "__main__":
     MILLION = 1000000
     TRAIN_STEPS = args.n
     if TRAIN_STEPS is None:
-        TRAIN_STEPS = 5 * MILLION
+        TRAIN_STEPS = 20 * MILLION
 
-    N_ENVS = 1 # 4 in best run 6 originally
+
+    cur_encoding = args.cur_encoding
+    if cur_encoding is None:
+        cur_encoding = 'rings2d'
+    
+    rew_norm = args.rew_norm
+    if rew_norm is None:
+        rew_norm = False
+
+    N_ENVS = 4 # 4 in best run 6 originally
     #if args.debug:
     #    env = DummyVecEnv([lambda: CuriosityWrapper(
     #        E2ENavRepEnvCuriosity(silent=True, scenario='train'))]*N_ENVS)
@@ -57,21 +70,26 @@ if __name__ == "__main__":
     #                    use_gpu=False, feature_tf=None)]*N_ENVS, start_method='spawn')
 
     env = SubprocVecEnv([lambda: CuriosityWrapper(NavRepTrainEnvCuriosity(silent=True, scenario='train'),
-                        use_gpu=False, feature_tf=None, obsv_encoding='rings2d')]*N_ENVS, start_method='spawn')
+                        use_gpu=True, feature_tf=None, reward_norm=rew_norm, obsv_encoding=cur_encoding)]*N_ENVS, start_method='spawn')
 
-
-    eval_env = E2ENavRepEnv(silent=True, scenario='train')
-    #eval_env = NavRepTrainEncodedEnv(backend='VAE_LSTM', encoding='VM', silent=True, scenario='train')
-
-    def test_env_fn():  # noqa
-        return E2ENavRepEnv(silent=True, scenario='test')
-        #return NavRepTrainEncodedEnv(backend='VAE_LSTM', encoding='VM', silent=True, scenario='test')
+    if cur_encoding=='rings2d':
+        eval_env = E2ENavRepEnv(silent=True, scenario='train')
+        def test_env_fn():  # noqa
+            return E2ENavRepEnv(silent=True, scenario='test')
+        #model = PPO2(CustomPolicy, env, verbose=0)
+        model = PPO('MlpPolicy', env, verbose=0)
+        #model = PPO2(MlpPolicy, env, verbose=0) # stable baselines v2
+    else :
+        eval_env = NavRepTrainEncodedEnv(backend='GPT', encoding=cur_encoding, silent=True, scenario='train')
+        def test_env_fn():  # noqa
+            return NavRepTrainEncodedEnv(backend='GPT', encoding=cur_encoding, silent=True, scenario='test')
+        model = PPO('MlpPolicy', env, verbose=0)
+        #model = PPO2(MlpPolicy, env, verbose=0) # stable baselines v2
     
+    # if switch to stable baselines v3 the function below needs to be changed
     cb = NavrepEvalCallback(eval_env, test_env_fn=test_env_fn,
                             logpath=LOGPATH, savepath=MODELPATH, verbose=1, render=args.render)
-    
-    #model = PPO2(MlpPolicy, env, verbose=0)
-    model = PPO2(CustomPolicy, env, verbose=0)
+
 
     model.learn(total_timesteps=TRAIN_STEPS+1, callback=cb)
     obs = env.reset()
@@ -80,16 +98,18 @@ if __name__ == "__main__":
     model.save(MODELPATH2)
     print("Model '{}' saved".format(MODELPATH))
 
+    print("Finished Training")
+
     del model
 
-    model = PPO2.load(MODELPATH)
+    #model = PPO2.load(MODELPATH)
 
     #env = E2ENavRepEnv(silent=True, scenario='train')
-    env = NavRepTrainEncodedEnv(backend='VAE_LSTM', encoding='V_ONLY', silent=True, scenario='train')
-    obs = env.reset()
-    for i in range(512):
-        action, _states = model.predict(obs, deterministic=True)
-        obs, _, done, _ = env.step(action)
-        if done:
-            env.reset()
+    ##env = NavRepTrainEncodedEnv(backend='VAE_LSTM', encoding='V_ONLY', silent=True, scenario='train')
+    #obs = env.reset()
+    #for i in range(512):
+    #    action, _states = model.predict(obs, deterministic=True)
+    #    obs, _, done, _ = env.step(action)
+    #    if done:
+    #        env.reset()
 #         env.render()

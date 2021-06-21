@@ -37,7 +37,7 @@ if __name__ == "__main__":
     MILLION = 1000000
     TRAIN_STEPS = args.n
     if TRAIN_STEPS is None:
-        TRAIN_STEPS = 5 * MILLION
+        TRAIN_STEPS = 40 * MILLION
 
     N_ENVS = 4
     #if args.debug:
@@ -48,19 +48,25 @@ if __name__ == "__main__":
    # else:
         #env = SubprocVecEnv([lambda: E2ENavRepEnv(silent=True, scenario='train')]*N_ENVS,
                             #start_method='spawn')     
-    #env = SubprocVecEnv([lambda: CuriosityWrapper(E2ENavRepEnvCuriosity(silent=True, scenario='train'))]*N_ENVS, start_method='spawn')
+    env = SubprocVecEnv([lambda: CuriosityWrapper(E2ENavRepEnvCuriosity(silent=True, scenario='train'), feature_tf='random')]*N_ENVS, start_method='spawn')
     #env = SubprocVecEnv([lambda: CuriosityWrapper(E2ENavRepEnv(silent=True, scenario='train'))]*N_ENVS, start_method='spawn')
     
-    env = SubprocVecEnv([lambda: CuriosityWrapper(NavRepTrainEncodedEnvCuriosity(backend='VAE_LSTM', encoding='V_ONLY', silent=True, scenario='train'),
-                        use_gpu=False, feature_tf=None)]*N_ENVS, start_method='spawn')
+    #env = SubprocVecEnv([lambda: CuriosityWrapper(NavRepTrainEncodedEnvCuriosity(backend='VAE_LSTM', encoding='VM+LIDAR', silent=True, scenario='train'),
+    #                    use_gpu=False, feature_tf=None, obsv_mod=True)]*N_ENVS, start_method='spawn')
 
 
-    #eval_env = E2ENavRepEnv(silent=True, scenario='train')
-    eval_env = NavRepTrainEncodedEnv(backend='VAE_LSTM', encoding='V_ONLY', silent=True, scenario='train')
+    eval_env = E2ENavRepEnv(silent=True, scenario='train')
+    #eval_env = NavRepTrainEncodedEnv(backend='VAE_LSTM', encoding='VM+LIDAR', silent=True, scenario='train')
+    #eval_env = CuriosityWrapper(NavRepTrainEncodedEnvCuriosity(backend='VAE_LSTM', encoding='VM+LIDAR', silent=True, scenario='train'),
+    #                   use_gpu=False, feature_tf=None, obsv_mod=True)
+
 
     def test_env_fn():  # noqa
-        #return E2ENavRepEnv(silent=True, scenario='test')
-        return NavRepTrainEncodedEnv(backend='VAE_LSTM', encoding='V_ONLY', silent=True, scenario='test')
+        return E2ENavRepEnv(silent=True, scenario='test')
+        #return NavRepTrainEncodedEnv(backend='VAE_LSTM', encoding='VM+LIDAR', silent=True, scenario='test')
+        #eval_env = CuriosityWrapper(NavRepTrainEncodedEnvCuriosity(backend='VAE_LSTM', encoding='VM+LIDAR', silent=True, scenario='test'),
+         #               use_gpu=False, feature_tf=None, obsv_mod=True)
+
     
     cb = NavrepEvalCallback(eval_env, test_env_fn=test_env_fn,
                             logpath=LOGPATH, savepath=MODELPATH, verbose=1, render=args.render)
