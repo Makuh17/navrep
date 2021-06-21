@@ -28,3 +28,7 @@ env = CuriosityWrapper(NavRepTrainEnvCuriosity(silent=True, scenario='train')
 
 ## Logs
 The trained predictor network for version 1 of the curiosity module are stored in `~/navrep/models/curiosity/`
+
+## Credits
+
+This library was written primarily by Daniel Dugas. The transformer block codes, and vae/lstm code were taken or heavily derived from world models and karpathy's mingpt. We've retained the copyright headers for the relevant files.
