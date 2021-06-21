@@ -8,7 +8,13 @@ import numpy as np
 rng = np.random.default_rng(12345)
 
 class Room(object):
+    """
+    A class defining a 2D room with doors
+    """
     def __init__(self, h, w, c):
+        """
+        Creates a rectangular room based on height, width and a centre point
+        """
         self.update_hwc(h,w,c)
         self.corridor_sides = []
         self.door = []
@@ -20,6 +26,9 @@ class Room(object):
         
     @classmethod
     def from_vert(cls, vert):
+        """
+        Creates a rectangular room based on corner vertecies
+        """
         min_x, max_x = np.min(vert[:,0]),np.max(vert[:,0])
         min_y, max_y = np.min(vert[:,1]),np.max(vert[:,1])
         h = max_y - min_y
@@ -28,12 +37,26 @@ class Room(object):
         return cls(h,w,c)
     
     def get_vert(self):
+        """Returns the corner vertecies"""
         return self.c + np.array([[self.dim[0], self.dim[1]],[-self.dim[0],self.dim[1]],[-self.dim[0],-self.dim[1]],[self.dim[0],-self.dim[1]]])/2
     
     def get_area(self):
+        """Returns area of room"""
         return self.dim[0]*self.dim[1]
     
     def add_door(self, side=None):
+        """
+        Adds a door to the room. If no specific side is supplied, the door will be randomly placed on a
+        side which faces a corridor to ensure access to the room.
+        The room sides are defines as:
+                   0
+                -------
+                |     |
+              1 |     | 3
+                |     |
+                -------
+                   2
+        """
         if side == None:
             s = rng.choice(self.corridor_sides)
         else:
@@ -57,7 +80,7 @@ class Room(object):
         
         collision = False
         for door in other_doors:
-            #check if current door clashes with existing door NOT WORKING
+            #check if current door clashes with existing door
             if any(door_point[:,1-axis] > np.min(door[0][:,1-axis])) and any(door_point[:,1-axis] < np.max(door[0][:,1-axis])):
                 collision = True
                 print("collision")
@@ -65,15 +88,11 @@ class Room(object):
         if not collision:
             self.door.append((door_point,s))
         
-        #      0
-        #   -------
-        #   |     |
-        # 1 |     | 3
-        #   |     |
-        #   -------
-        #      2
-        
     def get_polygons(self):
+        """
+        Return the vertecies of the polygons defining the room walls, taking into accout the wall thickness.
+        The polygons will not in general be convex and therefore we also return the polygons broken into rectangles.
+        """
         if len(self.door) < 1:
             return [self.get_vert()]
         else:
@@ -89,9 +108,7 @@ class Room(object):
             # sorting
             door_avg = np.array([np.mean(d[0], axis=0) for d in doors])-self.c
             first_vert_ang = np.arctan2(verts[0][1]-self.c[1], verts[0][0]-self.c[0])
-            #print("first_vert_ang: ", first_vert_ang)
             sorted_door_idx = np.argsort(np.mod(np.arctan2(door_avg[:,1],door_avg[:,0])-first_vert_ang+np.pi*2,np.pi*2))
-            #print("sorted index: ", sorted_door_idx)
 
             # create polygon 1
             cur_door_idx = sorted_door_idx[0]
@@ -143,6 +160,7 @@ class Room(object):
     
     
     def set_corridor_sides(self, l):
+        """ sets which sides of the room faces a corridor"""
         l = set(l)
         self.corridor_sides = list(l)
         
@@ -150,6 +168,9 @@ class Room(object):
         return self.corridor_sides
 
     def split_room(self, axis, corridor_w):
+        """
+        Split a room along one of the axes, creating two rooms with a distance of corridor_w betwen them.
+        """
         min_, max_ = np.min(self.get_vert()[:,axis]),np.max(self.get_vert()[:,axis])
         split = rng.random()*(max_-min_)+min_
         split = rng.beta(5,5)*(max_-min_-corridor_w)+min_+corridor_w/2
@@ -187,107 +208,3 @@ class Room(object):
         if rng.choice([True,False]):
             room2.add_door()
         return [room1, room2]
-
-
-def split_room(room, axis, corridor_w):
-    min_, max_ = np.min(room.get_vert()[:,axis]),np.max(room.get_vert()[:,axis])
-    split = rng.random()*(max_-min_)+min_
-    split = rng.beta(1,1)*(max_-min_-corridor_w)+min_+corridor_w/2
-    room1 = room.get_vert().copy()
-    result = []
-    room1[room1[:,axis]==min_,axis] = split+corridor_w/2
-    room1 = Room.from_vert(room1)
-    if axis == 0:
-        side1 = 1
-        side2 = 3
-    else:
-        side1 = 2
-        side2 = 0
-    if corridor_w < 0.1:
-        corridor_sides1 = room.get_corridor_sides()
-        if side1 in corridor_sides1:
-            corridor_sides1.remove(side1)
-        corridor_sides2 = room.get_corridor_sides()
-        if side2 in corridor_sides2:
-            corridor_sides2.remove(side2)
-    else:
-        corridor_sides1 = room.get_corridor_sides() + [side1]
-        corridor_sides2 = room.get_corridor_sides() + [side2]
-    
-    room1.set_corridor_sides(corridor_sides1)
-    room1.add_door()
-    if rng.choice([True,False]):
-        room1.add_door()
-    
-    room2 = room.get_vert().copy()
-    room2[room2[:,axis]==max_,axis] = split-corridor_w/2
-    room2 = Room.from_vert(room2)
-    room2.set_corridor_sides(corridor_sides2)
-    room2.add_door()
-    if rng.choice([True,False]):
-        room2.add_door()
-    return [room1, room2]
-
-# class CrowdSimRoomGen(CrowdSim):
-#     def __init__(self):
-#         super(CrowdSimRoomGen, self).__init__()
-#         self.room_width = 15
-#         self.room_height = 12
-#         self.min_room_side_len = 1.5
-#         self.num_corridors = 4
-#         self.corridor_width = 1.5
-#         self.subdivide_large_rooms = True
-#         self.subdivide_area_limits = 30
-#         self.wall_width = 0.15
-#         self.door_width = 0.9
-    
-#     def generate_static_map_input(self):
-#         main_room = np.array([[self.room_width,self.room_height],[-self.room_width,self.room_height],[-self.room_width,-self.room_height],[self.room_width,-self.room_height]])/2
-#         main_room = Room.from_vert(main_room)   
-#         axis = rng.choice([0,1])
-#         rooms = []
-#         rooms.append(main_room)
-#         split = main_room.split_room(axis, self.corridor_width)
-#         rooms = [r for r in split if  min(r.dim[0],r.dim[1]) > self.min_room_side_len]
-
-#         # Creates corridors
-#         for i in range(self.num_corridors):
-#             axis = 1 - axis
-#             #corridor_w *= 0.9
-#             num = len(rooms)
-#             for i in range(num):
-#                 room = rooms.pop(0)
-#                 split = room.split_room(axis, self.corridor_width)
-#                 split = [r for r in split if min(r.dim[0],r.dim[1]) > self.min_room_side_len]
-#                 rooms+= split if split else [room]
-#             r_idx = np.argsort([r.get_area() for r in rooms])#np.arange(len(rooms))
-#             rooms = [rooms[i] for i in r_idx]
-
-#         if self.subdivide_large_rooms:
-#             big_rooms = [i for i,r in enumerate(rooms) if r.get_area() > self.subdivide_area_limits and r.corridor_sides]
-#             removed = []
-#             while big_rooms:
-#                 for i, br_idx in enumerate(big_rooms):
-#                     room = rooms.pop(br_idx-i)
-#                     axis = np.argmax(room.dim)
-#                     if not any(axis == np.mod(room.get_corridor_sides(),2)):
-#                         axis = 1 - axis
-#                     for j in range(4):
-#                         split = room.split_room(axis, 0)
-#                         split_if = [min(r.dim[0],r.dim[1]) > self.min_room_side_len for r in split]
-#                         if all(split_if):
-#                             rooms+= split
-#                             break
-#                         if j==3:
-#                             removed += [room]
-#                 big_rooms = [i for i,r in enumerate(rooms) if r.get_area() > self.subdivide_area_limits and r.corridor_sides]
-#             rooms += removed
-#         for room in rooms:
-#             # for polygon in room.get_polygons():
-#             #     self.obstacle_vertices.append(polygon)
-#             # alternative that for sure uses same 
-#             for polygon in room.get_polygons():
-#                 polygon_list = []
-#                 for point in polygon:
-#                     polygon_list.append((point[0],point[1]))
-#                 self.obstacle_vertices.append(polygon_list)

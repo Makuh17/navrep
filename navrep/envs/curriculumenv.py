@@ -42,6 +42,9 @@ Obstacle = collections.namedtuple(
 
 
 class CrowdSimWrapper(CrowdSim):
+    """
+    Wraps the CrowdSim environment to change the map generation process
+    """
     def __init__(self):
         super(CrowdSimWrapper, self).__init__()
         self.room_width = 15
@@ -54,35 +57,60 @@ class CrowdSimWrapper(CrowdSim):
         self.wall_width = 0.1
         self.door_width = 0.9
     def generate_static_map_input(self, phase, config=None):
-        """!
-        Generates randomly located static obstacles (boxes and walls) in the environment.
-            @param max_size: Max size in meters of the map
+        """
+        Overwrites the method from CrowdSim to use our map generator. 
+        Currently the integration is not fully working, and thus the collision detection is offset.
+            - This is likely due to a mismatch between the actual obstacles (defined in continous space)
+              and the discrete space which i beleive is used for collision checking
+                - Since all obstacles hace been converted to axis-aligned rectangles, it should be simple
+                  to do collision checking direcly on the continous space.
+        Other missing implementations (*should be handled outside this method) include: 
+            - the outer room border
+            - *ensuring valid start and goal positions
+                - CrowdSim computes these before map generation. This should instead be done after, since
+                  it makes more sense, and the new map generator does not take these positions into account.
+            - *ensuring valid positions for other agents
+                - This is not greatly important, as the effect of one bing stuck in a wall is not too bad
+                  taking into account the low risk.
+            - adding further random obstacles, e.g., imitating furniture.
         """
         import matplotlib.pyplot as plt
         from matplotlib.patches import Circle, Wedge, Polygon
         self.obstacle_vertices = []
         obstacles = []
+
+        #create the first main room
         main_room = np.array([[self.room_width,self.room_height],[-self.room_width,self.room_height],[-self.room_width,-self.room_height],[self.room_width,-self.room_height]])/2
         main_room = Room.from_vert(main_room)   
         axis = rng.choice([0,1])
         rooms = []
         rooms.append(main_room)
+
+        #split the main room
         split = main_room.split_room(axis, self.corridor_width)
         rooms = [r for r in split if  min(r.dim[0],r.dim[1]) > self.min_room_side_len]
 
         # Creates corridors
         for i in range(self.num_corridors):
-            axis = 1 - axis
+            # ensures switching between axes
+            # this has been removed and favouring choosing the to always split the room on the longest side.
+            #axis = 1 - axis 
             #corridor_w *= 0.9
             num = len(rooms)
             for i in range(num):
                 room = rooms.pop(0)
+
+                # choose splitting axis to split room on the longer side for more regular room dimensions.
+                axis = np.argmax(room.dim)
                 split = room.split_room(axis, self.corridor_width)
+                # keep only rooms that are large enough.
                 split = [r for r in split if min(r.dim[0],r.dim[1]) > self.min_room_side_len]
+                # keep the onld room if both resulting rooms are too small.
                 rooms+= split if split else [room]
             r_idx = np.argsort([r.get_area() for r in rooms])#np.arange(len(rooms))
             rooms = [rooms[i] for i in r_idx]
 
+        # allows for subdivision of larger rooms without a corridor in between    
         if self.subdivide_large_rooms:
             big_rooms = [i for i,r in enumerate(rooms) if r.get_area() > self.subdivide_area_limits and r.corridor_sides]
             removed = []
@@ -103,11 +131,14 @@ class CrowdSimWrapper(CrowdSim):
                 big_rooms = [i for i,r in enumerate(rooms) if r.get_area() > self.subdivide_area_limits and r.corridor_sides]
             rooms += removed
         
+        # at this point, the rooms are created, the remaining code aims to bring it to the CrowdSim format
         max_size = max(self.room_height,self.room_width)
         grid_size = int(round(max_size / self.map_resolution))
         self.map = np.ones((grid_size, grid_size))
             
         fig, ax = plt.subplots(figsize=[10,10])  
+        # appends the "continous" obstacles. To comply with CrowdSim, we probably have to first convert these
+        # make sure they align with the discrete map grid used by CrowdSim.
         for room in rooms:
             # for polygon in room.get_polygons():
             #     self.obstacle_vertices.append(polygon)
@@ -120,7 +151,7 @@ class CrowdSimWrapper(CrowdSim):
 
                 self.obstacle_vertices.append(polygon_list)
             # we need to have agreement between obstacle vertecies and map. In the long run, we could probably implement
-            # out own step with colission checking and so on, but for now we should probably just convert the generated
+            # our own step with colission checking and so on, but for now we should probably just convert the generated
             # obstacle verticies to point in the grid.  Also, look into the expert policy implementation to see how to
             # create the self.map 
             
@@ -176,6 +207,8 @@ class CrowdSimWrapper(CrowdSim):
                                 shifted_idx_y))
                         if submap_x > 0 and submap_x < grid_size and submap_y > 0 and submap_y < grid_size:
                             self.map[submap_x,submap_y] = obstacle.patch[idx_x, idx_y]
+        
+        # used for visulisation for debugging.
         # for obstacle in obstacles:
         #     self.map[obstacle.location_x,obstacle.location_y] = 1
         print("grid size: ", grid_size)
@@ -187,7 +220,8 @@ class CrowdSimWrapper(CrowdSim):
             self.create_observation_from_static_obstacles(obstacles)
     
 
-
+# replaces flatten_contours() which expects only numpy arrays and thus cannot handle lists of obstacles
+# with different numbers of vertecies. 
 def temp_flatten(contours):
     n_total_vertices = len(np.array(contours).flatten())/2 + len(contours)
     n_total_vertices = sum( [ len(contour) for contour in contours])+ len(contours)
@@ -203,7 +237,7 @@ def temp_flatten(contours):
     return flat_contours
 
 class CurriculumEnv(NavRepTrainEnv):
-    """Curiculum Env Wrapper"""
+    """Wraps the NavRepTrainEnv to use the CrowdSimWrapper allowing for different map generation"""
     def __init__(self, scenario='test', silent=False, legacy_mode=False, adaptive=True, lidar_legs=True, collect_statistics=True):
         super().__init__(scenario=scenario, silent=silent, legacy_mode=legacy_mode, adaptive=adaptive, lidar_legs=lidar_legs, collect_statistics=collect_statistics)
 
@@ -250,10 +284,8 @@ class CurriculumEnv(NavRepTrainEnv):
         if not self.LEGACY_MODE:
             self._add_border_obstacle()
         contours = self.soadrl_sim.obstacle_vertices
-        #print("contours: ", contours)
         #self.flat_contours = flatten_contours(contours)
         self.flat_contours = temp_flatten(contours)
-        #print("flat contours: ", self.flat_contours)
         self.distances_travelled_in_base_frame = np.zeros((len(self.soadrl_sim.humans), 3))
         obs = self._convert_obs()
         if self.LEGACY_MODE:
