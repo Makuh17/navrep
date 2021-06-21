@@ -27,6 +27,7 @@ class NavRepTrainEncodedEnvCuriosity(NavRepTrainEnvCuriosity):
     """ takes a (2) action as input
     outputs encoded obs (546) 
     Includes DONE signal change
+    Where is the robot state -> is included (32(encode)+5(robot state))=37
     """
     def __init__(self, backend, encoding,
                  scenario='test', silent=False, adaptive=True,

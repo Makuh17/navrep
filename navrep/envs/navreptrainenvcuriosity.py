@@ -222,6 +222,16 @@ class NavRepTrainEnvCuriosity(gym.Env):
         reward = reward + progress_reward
         reward = reward * 100.
         self.episode_reward += reward
+        
+        if done and self.scenario == 'test' and False:            
+            if isinstance(info, ReachGoal):
+                print("Done signal to false if goal is reached :WARNING this should normally be turned off when testing")
+                self.reset()
+                print('reeached goal')
+                done = False
+        
+        
+        
         # adaptive difficulty
         if done and self.adaptive and self.scenario == "train":
             if isinstance(info, ReachGoal):
