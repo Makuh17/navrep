@@ -93,6 +93,10 @@ class E2ENavRepEnv(NavRepTrainEnv):
         return h
 
 class E2ENavRepEnvPretrain(E2ENavRepEnv):
+    """
+    Wraps the E2ENavRepEnv to change the observation dimensions. 
+    The observations remain unchanged, but are reshaped to fit with the stable baselines pretrain method
+    """
     def __init__(self, *args, **kwargs):
         super(E2ENavRepEnvPretrain, self).__init__(*args, **kwargs)
         N = _64*_64 + _RS
@@ -155,6 +159,9 @@ class E2EIANEnv(IANEnv):
         return h
 
 class E2EIANEnvPretrain(E2EIANEnv):
+    """
+    For pretraining in the "test" environments.
+    """
     def __init__(self, *args, **kwargs):
         super(E2EIANEnvPretrain, self).__init__(*args, **kwargs)
         N = _64*_64 + _RS

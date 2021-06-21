@@ -48,6 +48,7 @@ if __name__ == "__main__":
         env = SubprocVecEnv([lambda: E2ENavRepEnvPretrain(silent=True, scenario='train', adaptive=True)]*N_ENVS,
                             start_method='spawn')
     eval_env = E2ENavRepEnvPretrain(silent=True, scenario='train', adaptive=True)
+    # use these to make the environment easier
     # eval_env.soadrl_sim.human_num = 2
     # eval_env.soadrl_sim.num_walls = 1
     # eval_env.soadrl_sim.num_circles = 0
@@ -66,6 +67,7 @@ if __name__ == "__main__":
     cb = NavrepEvalCallback(eval_env, test_env_fn=test_env_fn,
                             logpath=LOGPATH, savepath=MODELPATH, verbose=1, render=args.render)
 
+    # If an expert data set does not already exist, create one
     print(EXPERTPATH + ".npz")
     if not os.path.exists(EXPERTPATH + ".npz"):
         print("Generate expert dataset")
@@ -73,12 +75,16 @@ if __name__ == "__main__":
 
         print("Saved expert data to " + EXPERTPATH)
 
+    # load the expert data set
     dataset = ExpertDataset(expert_path=EXPERTPATH+".npz",traj_limitation=1, batch_size=64)
 
+    # create the agent model
     model = PPO2(CustomPolicy, env, verbose=1)
 
+    # pretrain the model
     model.pretrain(dataset, n_epochs=1000)
 
+    # run regular reinforcement learning
     model.learn(total_timesteps=TRAIN_STEPS+1, callback=cb)
     obs = env.reset()
 
